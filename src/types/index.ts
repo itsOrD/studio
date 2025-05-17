@@ -9,6 +9,9 @@ export interface Prompt {
   lastCopiedAt?: number; // For last copy history
   isGeneratingDetails?: boolean; // To indicate background AI processing
   history?: Array<{ text: string; editedAt: number }>; // Basic history placeholder
+  useCount?: number; // For tracking how many times a prompt is used/copied
+  // customTitle is true if the user has manually set the title, false if AI-generated or default
+  customTitle?: boolean; 
 }
 
 export interface TagBeingEdited {

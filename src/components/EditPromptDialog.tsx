@@ -14,59 +14,81 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 interface EditPromptDialogProps {
   prompt: Prompt | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (data: { id: string; text: string }) => void;
+  onSave: (data: { id: string; title: string; text: string }) => void;
 }
 
 export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditPromptDialogProps) {
+  const [editTitle, setEditTitle] = useState('');
   const [editText, setEditText] = useState('');
 
   useEffect(() => {
     if (prompt) {
+      setEditTitle(prompt.title);
       setEditText(prompt.text);
     }
   }, [prompt]);
 
   const handleSave = () => {
-    if (prompt && editText.trim()) {
-      onSave({ id: prompt.id, text: editText.trim() });
-      // onOpenChange(false); // Dialog will be closed by parent after save logic
+    if (prompt && editText.trim() && editTitle.trim()) {
+      onSave({ id: prompt.id, title: editTitle.trim(), text: editText.trim() });
     }
   };
 
+  const resetState = () => {
+    if (prompt) {
+        setEditTitle(prompt.title);
+        setEditText(prompt.text);
+    }
+  }
+
   if (!prompt) return null;
+
+  const hasChanges = (prompt.title !== editTitle.trim() || prompt.text !== editText.trim()) && editTitle.trim() && editText.trim();
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
         onOpenChange(open);
         if (!open) {
-            // Reset text if dialog is closed without saving (e.g. ESC or overlay click)
-            // This ensures if they re-open it for the same prompt, it shows original text
-            if (prompt) setEditText(prompt.text);
+            resetState();
         }
     }}>
-      <DialogContent className="sm:max-w-[425px] bg-card">
+      <DialogContent className="sm:max-w-md bg-card">
         <DialogHeader>
-          <DialogTitle className="text-primary">Edit Prompt: {prompt.title}</DialogTitle>
+          <DialogTitle className="text-primary">Edit Prompt</DialogTitle>
           <DialogDescription>
-            Make changes to your prompt text below. Title and tags will be automatically updated if the text changes. Click save when you're done.
+            Make changes to your prompt. Title and tags may regenerate if text changes.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid items-center grid-cols-4 gap-4">
-            <Label htmlFor="prompt-text" className="text-right sr-only">
-              Prompt
+          <div className="grid gap-2">
+            <Label htmlFor="prompt-title-edit" className="text-left">
+              Title
+            </Label>
+            <Input
+              id="prompt-title-edit"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="bg-input text-foreground placeholder:text-muted-foreground"
+              placeholder="Enter prompt title"
+              aria-label="Prompt title editor"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="prompt-text-edit" className="text-left">
+              Prompt Text
             </Label>
             <Textarea
-              id="prompt-text"
+              id="prompt-text-edit"
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              className="col-span-4 min-h-[100px] bg-input text-foreground placeholder:text-muted-foreground"
+              className="min-h-[120px] bg-input text-foreground placeholder:text-muted-foreground"
               placeholder="Enter your prompt text"
               aria-label="Prompt text editor"
             />
@@ -74,11 +96,11 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline" onClick={() => { if (prompt) setEditText(prompt.text); }}>
+            <Button type="button" variant="outline" onClick={resetState}>
               Cancel
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleSave} disabled={!editText.trim() || editText.trim() === prompt.text}>
+          <Button type="button" onClick={handleSave} disabled={!hasChanges}>
             Save Changes
           </Button>
         </DialogFooter>

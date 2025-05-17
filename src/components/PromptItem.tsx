@@ -7,10 +7,27 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Edit3, Trash2, GripVertical, XIcon, PencilIcon, Star, Loader2, CopyPlus as CloneIcon } from 'lucide-react';
+import { Copy, Edit3, Trash2, GripVertical, XIcon, PencilIcon, Loader2, CopyPlus as CloneIcon } from 'lucide-react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
+
+// Simple Orange SVG component
+const OrangeIcon = ({ className, isFavorite }: { className?: string, isFavorite?: boolean }) => (
+  <svg 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={cn("w-4 h-4", className, isFavorite ? "fill-primary text-primary" : "text-muted-foreground")}
+  >
+    <circle cx="12" cy="12" r="10" className={isFavorite ? "stroke-primary" : "stroke-current"} />
+    {isFavorite && <path d="M12 2a2.5 2.5 0 00-1 4.75V2" stroke="hsl(var(--primary-foreground))" strokeWidth="1.5" />}
+  </svg>
+);
+
 
 interface PromptItemProps {
   prompt: Prompt;
@@ -45,15 +62,21 @@ export function PromptItem({
   
   const lastCopiedText = prompt.lastCopiedAt 
     ? `Last copied: ${new Date(prompt.lastCopiedAt).toLocaleString()}` 
-    : "Copy";
+    : "Copy to clipboard";
+  
+  const usageText = `Used ${prompt.useCount || 0} time(s). ${lastCopiedText}`;
 
   return (
-    <Card className="flex flex-col h-full shadow-md bg-card hover:shadow-lg transition-shadow duration-200">
+    <Card className="flex flex-col h-full shadow-md bg-card hover:shadow-xl hover:scale-[1.02] hover:border-primary/30 transition-all duration-200 ease-in-out border">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
-            <div className="flex-grow min-w-0"> {/* Added min-w-0 for better truncation handling */}
-                <CardTitle className="text-lg font-semibold text-primary truncate flex items-center" title={prompt.title || "Untitled Prompt"}>
-                    {prompt.isGeneratingDetails && prompt.title === "Untitled Prompt" ? (
+            <div className="flex-grow min-w-0 mr-2">
+                <CardTitle 
+                  className="text-lg font-semibold text-primary truncate flex items-center cursor-pointer hover:underline" 
+                  title={prompt.title || "Untitled Prompt"}
+                  onClick={() => onEdit(prompt)}
+                >
+                    {prompt.isGeneratingDetails && (prompt.title === "Untitled Prompt" || !prompt.title) ? (
                         <span className="flex items-center"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating title...</span>
                     ) : (
                         <span className="truncate">{prompt.title || "Untitled Prompt"}</span> 
@@ -61,28 +84,28 @@ export function PromptItem({
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">Saved: {formattedDate}</CardDescription>
             </div>
-            <div className="flex items-center space-x-1 shrink-0 ml-2"> {/* Added ml-2 for spacing */}
+            <div className="flex items-center space-x-1 shrink-0">
+                <TooltipProvider>
+                    <Tooltip delayDuration={100}>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from header">
+                                <Copy className="w-4 h-4 text-accent opacity-70 hover:opacity-100" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-popover text-popover-foreground">
+                            <p>{usageText}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
                 <TooltipProvider>
                     <Tooltip delayDuration={100}>
                         <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onToggleFavorite(prompt.id)} aria-label="Toggle favorite">
-                                <Star className={cn("w-4 h-4", prompt.isFavorite ? "text-primary fill-primary" : "text-muted-foreground")} />
+                                <OrangeIcon isFavorite={prompt.isFavorite} />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent className="bg-popover text-popover-foreground">
                             <p>{prompt.isFavorite ? 'Unfavorite' : 'Favorite'}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-                 <TooltipProvider>
-                    <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from header">
-                            <Copy className="w-4 h-4 text-accent" />
-                        </Button>
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-popover text-popover-foreground">
-                            <p>{lastCopiedText}</p>
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
@@ -153,23 +176,11 @@ export function PromptItem({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <TooltipProvider>
-          <Tooltip delayDuration={100}>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => onDelete(prompt.id)} aria-label="Delete prompt">
-                <Trash2 className="w-4 h-4 text-destructive" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="bg-popover text-popover-foreground">
-              <p>Delete</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider>
+         <TooltipProvider>
           <Tooltip delayDuration={100}>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={() => onDuplicate(prompt.id)} aria-label="Duplicate prompt">
-                <CloneIcon className="w-4 h-4 text-muted-foreground hover:text-primary" />
+                <CloneIcon className="w-4 h-4 text-foreground/80 hover:text-primary" />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground">
@@ -180,12 +191,24 @@ export function PromptItem({
         <TooltipProvider>
           <Tooltip delayDuration={100}>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from footer">
-                <Copy className="w-4 h-4 text-accent" />
+              <Button variant="ghost" size="icon" onClick={() => onDelete(prompt.id)} aria-label="Delete prompt">
+                <Trash2 className="w-4 h-4 text-destructive/90 hover:text-destructive" />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground">
-              <p>{lastCopiedText}</p>
+              <p>Delete</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider>
+          <Tooltip delayDuration={100}>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from footer">
+                <Copy className="w-4 h-4 text-accent opacity-70 hover:opacity-100" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="bg-popover text-popover-foreground">
+              <p>{usageText}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
