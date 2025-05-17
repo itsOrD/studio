@@ -9,7 +9,7 @@ body {
 
 @layer base {
   :root {
-    /* OrangePad Theme */
+    /* OrangePad Theme - Light Mode */
     --background: 30 100% 97%; /* Very Light Peach */
     --foreground: 25 50% 25%; /* Dark Brown */
     
@@ -19,7 +19,7 @@ body {
     --popover: 30 70% 98%; /* Similar to card */
     --popover-foreground: var(--foreground);
     
-    --primary: 24 100% 55%; /* Deep Pumpkin Orange (was --important-action) */
+    --primary: 24 100% 55%; /* Deep Pumpkin Orange */
     --primary-foreground: 20 100% 97%; /* Light warm color for text on orange */
     
     --secondary: 30 60% 85%; /* Lighter Peach/Orange for secondary elements */
@@ -31,8 +31,7 @@ body {
     --accent: 39 100% 60%; /* Gold/Yellow-Orange for accents */
     --accent-foreground: 25 70% 15%; /* Dark brown for text on accent */
     
-    /* --important-action is now effectively --primary */
-    --important-action: var(--primary);
+    --important-action: var(--primary); /* Uses Deep Pumpkin Orange */
     --important-action-foreground: var(--primary-foreground);
 
     --destructive: 0 84% 60%; /* Red */
@@ -40,7 +39,7 @@ body {
     
     --border: 30 50% 88%; /* Peach-tinted Border */
     --input: 30 60% 94%; /* Slightly off-background peach for inputs */
-    --ring: 24 100% 65%; /* Brighter Orange for rings */
+    --ring: 24 100% 65%; /* Brighter Orange for rings (often focus rings for primary elements) */
 
     --chart-1: 24 76% 61%; /* Orange-based chart color */
     --chart-2: 39 58% 50%; /* Gold-based chart color */
@@ -49,19 +48,19 @@ body {
     --chart-5: 24 87% 75%; /* Lighter Orange */
     --radius: 0.5rem;
 
-    /* Sidebar variables - align with new theme */
-    --sidebar-background: 30 15% 96%; /* Very light peach/almost white */
+    /* Sidebar variables - Light Mode */
+    --sidebar-background: 30 15% 96%; 
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);
-    --sidebar-accent: var(--accent);
+    --sidebar-accent: var(--accent); /* Gold/Yellow-Orange */
     --sidebar-accent-foreground: var(--accent-foreground);
     --sidebar-border: var(--border);
-    --sidebar-ring: var(--ring);
+    --sidebar-ring: var(--ring); /* Orange ring */
   }
 
   .dark {
-    /* OrangePad Dark Theme */
+    /* OrangePad Dark Theme with Purple Accent */
     --background: 25 15% 10%; /* Very Dark Brown/Almost Black */
     --foreground: 30 80% 92%; /* Light Peach/Off-white for text */
     
@@ -71,8 +70,8 @@ body {
     --popover: 25 10% 8%; /* Darker popover */
     --popover-foreground: var(--foreground);
     
-    --primary: 24 100% 65%; /* Brighter Orange for Dark Mode */
-    --primary-foreground: 20 100% 15%; /* Very Dark color for text on orange */
+    --primary: 24 100% 65%; /* Brighter Orange for Dark Mode (still the main 'OrangePad' orange) */
+    --primary-foreground: 20 100% 15%; /* Very Dark color for text on bright orange */
     
     --secondary: 25 25% 30%; /* Dark muted brown/orange */
     --secondary-foreground: 30 80% 85%;
@@ -80,28 +79,28 @@ body {
     --muted: 25 20% 25%; /* Darker muted brown/orange */
     --muted-foreground: 30 75% 70%;
     
-    --accent: 39 100% 65%; /* Brighter Gold/Yellow-Orange for Dark Mode */
-    --accent-foreground: 25 100% 15%; /* Dark for gold accent */
+    --accent: 275 70% 60%; /* Vibrant Purple for accents in dark mode */
+    --accent-foreground: 275 70% 95%; /* Light text for Purple Accent */
 
-    --important-action: var(--primary);
+    --important-action: var(--primary); /* Keeps important actions Orange */
     --important-action-foreground: var(--primary-foreground);
 
-    --destructive: 0 80% 70%; /* Brighter Red for Dark Mode */
+    --destructive: 0 70% 65%; /* Slightly adjusted Red for Dark Mode */
     --destructive-foreground: 0 0% 100%;
     
     --border: 25 15% 20%; /* Dark brown-tinted border */
     --input: 25 15% 22%; /* Slightly off-background dark for inputs */
-    --ring: 24 100% 70%; /* Brighter Orange Ring */
+    --ring: 275 70% 70%; /* Purple for general focus rings (unless overridden by primary context) */
 
     /* Dark Sidebar variables */
     --sidebar-background: 25 15% 11%; 
     --sidebar-foreground: var(--foreground);
-    --sidebar-primary: var(--primary);
+    --sidebar-primary: var(--primary); /* Orange */
     --sidebar-primary-foreground: var(--primary-foreground);
-    --sidebar-accent: var(--accent);
+    --sidebar-accent: var(--accent); /* Purple */
     --sidebar-accent-foreground: var(--accent-foreground);
     --sidebar-border: var(--border);
-    --sidebar-ring: var(--ring);
+    --sidebar-ring: var(--ring); /* Purple ring for sidebar context */
   }
 }
 
@@ -118,3 +117,4 @@ body {
 .btn-important-action {
   @apply bg-[hsl(var(--important-action))] text-[hsl(var(--important-action-foreground))] hover:bg-[hsl(var(--important-action))]/90;
 }
+
