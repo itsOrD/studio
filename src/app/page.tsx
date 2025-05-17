@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive, TagsIcon, PencilIcon } from 'lucide-react';
+import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive, TagsIcon, PencilIcon, Star, Copy as CopyIcon, Clone as CloneIcon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +31,7 @@ import { generatePromptTitle } from '@/ai/flows/generatePromptTitleFlow';
 import { generatePromptTags } from '@/ai/flows/generatePromptTagsFlow';
 
 const PROMPTS_STORAGE_KEY = 'orangepad-prompts';
+const INITIAL_UNTITLED_PROMPT = "Untitled Prompt";
 
 type SortField = 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
@@ -48,22 +49,53 @@ export default function HomePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [promptToDeleteId, setPromptToDeleteId] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'createdAt', order: 'desc' });
-  const [activeTag, setActiveTag] = useState<string | null>(null); // For tag filtering
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [tagBeingRenamed, setTagBeingRenamed] = useState<TagBeingEdited | null>(null);
   const [newTagNameForDialog, setNewTagNameForDialog] = useState('');
-
 
   const { toast } = useToast();
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    // Ensure prompts from localStorage have a `tags` array and initialize hydrated.
     setPrompts(prev => prev.map(p => ({
       ...p,
-      tags: Array.isArray(p.tags) ? p.tags : []
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      isFavorite: p.isFavorite ?? false,
+      isGeneratingDetails: p.isGeneratingDetails ?? false,
+      history: Array.isArray(p.history) ? p.history : [],
     })));
     setHydrated(true);
   }, [setPrompts]);
+
+  const triggerAIGeneration = useCallback(async (promptId: string, text: string, originalTitle?: string) => {
+    try {
+      const [titleResult, tagsResult] = await Promise.all([
+        generatePromptTitle({ promptText: text }),
+        generatePromptTags({ promptText: text })
+      ]);
+      
+      setPrompts(prev => prev.map(p => {
+        if (p.id === promptId) {
+          return { ...p, title: titleResult.title, tags: tagsResult.tags || [], isGeneratingDetails: false };
+        }
+        return p;
+      }));
+
+      toast({
+        title: 'Details Generated!',
+        description: `Title and tags updated for "${titleResult.title}".`,
+      });
+
+    } catch (error) {
+      console.error('Failed to generate title or tags:', error);
+      setPrompts(prev => prev.map(p => p.id === promptId ? { ...p, isGeneratingDetails: false, title: originalTitle || INITIAL_UNTITLED_PROMPT } : p));
+      toast({
+        title: 'AI Generation Failed',
+        description: 'Could not generate title/tags. Using default/previous values.',
+        variant: 'destructive',
+      });
+    }
+  }, [setPrompts, toast]);
 
 
   const handleAddPrompt = useCallback(async () => {
@@ -76,46 +108,36 @@ export default function HomePage() {
       return;
     }
 
-    let title = 'Untitled Prompt';
-    let tags: string[] = [];
-    const loadingToast = toast({ title: 'Saving prompt...', description: 'Generating title and tags, please wait.' });
-    
-    try {
-      const [titleResult, tagsResult] = await Promise.all([
-        generatePromptTitle({ promptText: newPromptText.trim() }),
-        generatePromptTags({ promptText: newPromptText.trim() })
-      ]);
-      title = titleResult.title;
-      tags = tagsResult.tags || [];
-    } catch (error) {
-      console.error('Failed to generate title or tags for new prompt:', error);
-      toast({
-        title: 'AI Generation Failed',
-        description: 'Using default title and no tags for now.',
-        variant: 'destructive',
-      });
-    } finally {
-        loadingToast.dismiss();
-    }
-
+    const tempId = crypto.randomUUID();
     const newPromptItem: Prompt = {
-      id: crypto.randomUUID(),
+      id: tempId,
       text: newPromptText.trim(),
-      title: title,
-      tags: tags,
+      title: INITIAL_UNTITLED_PROMPT,
+      tags: [],
       createdAt: Date.now(),
+      isFavorite: false,
+      isGeneratingDetails: true,
+      history: [],
     };
+
     setPrompts((prevPrompts) => [newPromptItem, ...prevPrompts]);
+    const currentText = newPromptText.trim(); // Capture current text for the async call
     setNewPromptText('');
+    
     toast({
       title: 'Prompt Saved!',
-      description: `"${title}" has been successfully saved.`,
+      description: `Saving "${currentText.substring(0,30)}..." and generating details.`,
     });
-  }, [newPromptText, setPrompts, toast]);
 
-  const handleCopyPrompt = useCallback(async (text: string) => {
+    // Trigger AI generation in background
+    triggerAIGeneration(tempId, currentText, INITIAL_UNTITLED_PROMPT);
+
+  }, [newPromptText, setPrompts, toast, triggerAIGeneration]);
+
+  const handleCopyPrompt = useCallback(async (promptId: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      setPrompts(prev => prev.map(p => p.id === promptId ? { ...p, lastCopiedAt: Date.now() } : p));
       toast({
         title: 'Copied to Clipboard!',
         description: 'Prompt text has been copied.',
@@ -128,7 +150,7 @@ export default function HomePage() {
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [setPrompts, toast]);
 
   const handleOpenEditDialog = useCallback((prompt: Prompt) => {
     setEditingPrompt(prompt);
@@ -139,47 +161,44 @@ export default function HomePage() {
     const promptToUpdate = prompts.find(p => p.id === data.id);
     if (!promptToUpdate) return;
 
-    let newTitle = promptToUpdate.title;
-    let newTags = promptToUpdate.tags || [];
-    let titleOrTagsChanged = false;
+    const originalText = promptToUpdate.text;
+    const originalTitle = promptToUpdate.title;
+    const textChanged = originalText !== data.text;
 
-    if (promptToUpdate.text !== data.text) {
-      const loadingToast = toast({ title: 'Updating prompt...', description: 'Regenerating title and tags, please wait.' });
-      try {
-        const [titleResult, tagsResult] = await Promise.all([
-          generatePromptTitle({ promptText: data.text }),
-          generatePromptTags({ promptText: data.text })
-        ]);
-        newTitle = titleResult.title;
-        newTags = tagsResult.tags || [];
-        titleOrTagsChanged = true;
-      } catch (error) {
-        console.error('Failed to generate title or tags on edit:', error);
-        toast({
-          title: 'AI Update Failed',
-          description: 'Could not update title/tags. Using previous values.',
-          variant: 'destructive',
-        });
-      } finally {
-        loadingToast.dismiss();
+    // Update immediately with new text and mark for AI processing if text changed
+    setPrompts(prev => prev.map(p => {
+      if (p.id === data.id) {
+        const newHistory = p.history ? [...p.history] : [];
+        if (textChanged && originalText) { // Add previous state to history
+          newHistory.unshift({ text: originalText, editedAt: Date.now() });
+        }
+        return {
+          ...p,
+          text: data.text,
+          isGeneratingDetails: textChanged, // Regenerate if text changed
+          history: newHistory.slice(0, 10), // Keep last 10 history items for now
+        };
       }
-    }
-
-    const updatedPrompt: Prompt = {
-      ...promptToUpdate,
-      text: data.text,
-      title: newTitle,
-      tags: newTags,
-    };
-
-    setPrompts(prev => prev.map(p => p.id === updatedPrompt.id ? updatedPrompt : p));
+      return p;
+    }));
+    
     setEditingPrompt(null);
     setIsEditDialogOpener(false);
-    toast({
-      title: 'Prompt Updated!',
-      description: `"${updatedPrompt.title}" has been successfully updated. ${titleOrTagsChanged ? '(Title/tags also updated)' : ''}`,
-    });
-  }, [prompts, setPrompts, toast]);
+
+    if (textChanged) {
+      toast({
+        title: 'Prompt Updated!',
+        description: `"${data.text.substring(0,30)}..." saved. Regenerating title & tags.`,
+      });
+      // Trigger AI generation in background
+      triggerAIGeneration(data.id, data.text, originalTitle);
+    } else {
+      toast({
+        title: 'Prompt Updated!',
+        description: 'No changes to prompt text, title and tags remain the same.',
+      });
+    }
+  }, [prompts, setPrompts, toast, triggerAIGeneration]);
 
   const confirmDeletePrompt = useCallback((promptId: string) => {
     setPromptToDeleteId(promptId);
@@ -209,7 +228,7 @@ export default function HomePage() {
 
   const handleOpenRenameTagDialog = useCallback((promptId: string, oldTag: string) => {
     setTagBeingRenamed({ promptId, oldTag, currentValue: oldTag });
-    setNewTagNameForDialog(oldTag); // Pre-fill dialog input
+    setNewTagNameForDialog(oldTag);
   }, []);
   
   const handleConfirmRenameTagOnPrompt = useCallback(() => {
@@ -224,14 +243,13 @@ export default function HomePage() {
     setPrompts(prev => prev.map(p => {
       if (p.id === promptId) {
         const existingTags = p.tags || [];
-        // Prevent duplicate tags after rename if new tag already exists
         if (existingTags.includes(newTagCleaned) && newTagCleaned !== oldTag) {
             toast({title: "Tag Exists", description: `Tag "${newTagCleaned}" already exists on this prompt. Removing "${oldTag}".`, variant: "default"});
             return { ...p, tags: existingTags.filter(t => t !== oldTag) };
         }
         return {
           ...p,
-          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index) // ensure uniqueness
+          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index)
         };
       }
       return p;
@@ -240,6 +258,37 @@ export default function HomePage() {
     setTagBeingRenamed(null);
     setNewTagNameForDialog('');
   }, [tagBeingRenamed, newTagNameForDialog, setPrompts, toast]);
+
+  const handleToggleFavorite = useCallback((promptId: string) => {
+    setPrompts(prev => prev.map(p => p.id === promptId ? { ...p, isFavorite: !p.isFavorite } : p));
+    const prompt = prompts.find(p => p.id === promptId);
+    if (prompt) {
+        toast({
+            title: prompt.isFavorite ? 'Unfavorited' : 'Favorited!',
+            description: `"${prompt.title}" ${prompt.isFavorite ? 'removed from' : 'added to'} favorites.`,
+        });
+    }
+  }, [prompts, setPrompts, toast]);
+
+  const handleDuplicatePrompt = useCallback((promptId: string) => {
+    const promptToDuplicate = prompts.find(p => p.id === promptId);
+    if (!promptToDuplicate) return;
+
+    const duplicatedPrompt: Prompt = {
+      ...promptToDuplicate,
+      id: crypto.randomUUID(),
+      title: `${promptToDuplicate.title} (Copy)`,
+      createdAt: Date.now(),
+      isGeneratingDetails: false, // Copied prompts don't need immediate regen
+      history: [], // History is not copied
+      // lastCopiedAt is not copied
+    };
+    setPrompts(prev => [duplicatedPrompt, ...prev]);
+    toast({
+        title: "Prompt Duplicated",
+        description: `"${duplicatedPrompt.title}" created.`
+    });
+  }, [prompts, setPrompts, toast]);
 
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -283,14 +332,19 @@ export default function HomePage() {
     }
 
     list.sort((a, b) => {
+      // Primary sort: favorites first
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+
+      // Secondary sort: based on sortConfig
       let comparison = 0;
-      const titleA = a.title || 'Untitled Prompt';
-      const titleB = b.title || 'Untitled Prompt';
+      const titleA = a.title || INITIAL_UNTITLED_PROMPT;
+      const titleB = b.title || INITIAL_UNTITLED_PROMPT;
 
       if (sortConfig.field === 'title') {
         comparison = titleA.localeCompare(titleB);
       } else { // createdAt
-        comparison = b.createdAt - a.createdAt; // Default to newest first for date
+        comparison = b.createdAt - a.createdAt;
       }
       return sortConfig.order === 'asc' ? comparison : -comparison;
     });
@@ -301,7 +355,7 @@ export default function HomePage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-background text-foreground">
         <AppHeader />
-        <p>Loading OrangePad...</p> {/* Updated loading text */}
+        <p>Loading OrangePad...</p>
       </div>
     );
   }
@@ -309,7 +363,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground">
       <AppHeader />
-      <main className="w-full max-w-5xl space-y-8"> {/* Increased max-width slightly */}
+      <main className="w-full max-w-5xl space-y-8">
         <Card 
           className={`w-full shadow-lg transition-all duration-300 ${isDragging ? 'border-primary ring-2 ring-primary' : 'border-input'}`}
           onDragOver={handleDragOver}
@@ -406,6 +460,8 @@ export default function HomePage() {
                       onDelete={confirmDeletePrompt}
                       onRemoveTag={handleRemoveTagFromPrompt}
                       onRenameTagRequest={handleOpenRenameTagDialog}
+                      onToggleFavorite={handleToggleFavorite}
+                      onDuplicate={handleDuplicatePrompt}
                     />
                   ))}
                 </div>
