@@ -12,19 +12,34 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-// Simple Orange SVG component
-const OrangeIcon = ({ className, isFavorite }: { className?: string, isFavorite?: boolean }) => (
-  <svg 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={cn("w-4 h-4", className, isFavorite ? "fill-primary text-primary" : "text-muted-foreground")}
+// Orange Fruit Icon for Favorites
+const OrangeFruitIcon = ({ className, isFavorite }: { className?: string, isFavorite?: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    strokeWidth="1.5"
+    className={cn(
+      "w-4 h-4 transition-colors duration-200",
+      isFavorite ? "text-primary-foreground" : "text-muted-foreground hover:text-[hsl(var(--important-action))]",
+      className
+    )}
   >
-    <circle cx="12" cy="12" r="10" className={isFavorite ? "stroke-primary" : "stroke-current"} />
-    {isFavorite && <path d="M12 2a2.5 2.5 0 00-1 4.75V2" stroke="hsl(var(--primary-foreground))" strokeWidth="1.5" />}
+    {/* Orange Body */}
+    <circle 
+      cx="12" 
+      cy="13" 
+      r="6.5" 
+      fill={isFavorite ? "hsl(var(--important-action))" : "none"} 
+      stroke={isFavorite ? "hsl(var(--important-action))" : "currentColor"}
+    />
+    {/* Simple Leaf/Stem */}
+    <path 
+      d="M14.5 7C14.5 5.5 13.5 4.5 12 4.5S9.5 5.5 9.5 7" 
+      stroke={isFavorite ? "hsl(var(--primary-foreground))" : "hsl(120 50% 40%)"} /* Greenish leaf */
+      fill="none" 
+      strokeLinecap="round"
+    />
+     {/* Optional: small highlight on the orange when favorited */}
+    {isFavorite && <circle cx="10" cy="11" r="1" fill="hsl(var(--primary-foreground))" opacity="0.7" />}
   </svg>
 );
 
@@ -67,105 +82,107 @@ export function PromptItem({
   const usageText = `Used ${prompt.useCount || 0} time(s). ${lastCopiedText}`;
 
   return (
-    <Card className="flex flex-col h-full shadow-md bg-card hover:shadow-xl hover:scale-[1.02] hover:border-primary/30 transition-all duration-200 ease-in-out border">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
-            <div className="flex-grow min-w-0 mr-2">
-                <CardTitle 
-                  className="text-lg font-semibold text-primary truncate flex items-center cursor-pointer hover:underline" 
-                  title={prompt.title || "Untitled Prompt"}
-                  onClick={() => onEdit(prompt)}
-                >
-                    {prompt.isGeneratingDetails && (prompt.title === "Untitled Prompt" || !prompt.title) ? (
-                        <span className="flex items-center"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating title...</span>
-                    ) : (
-                        <span className="truncate">{prompt.title || "Untitled Prompt"}</span> 
-                    )}
-                </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">Saved: {formattedDate}</CardDescription>
-            </div>
-            <div className="flex items-center space-x-1 shrink-0">
-                <TooltipProvider>
-                    <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from header">
-                                <Copy className="w-4 h-4 text-accent opacity-70 hover:opacity-100" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-popover text-popover-foreground">
-                            <p>{usageText}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                    <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onToggleFavorite(prompt.id)} aria-label="Toggle favorite">
-                                <OrangeIcon isFavorite={prompt.isFavorite} />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-popover text-popover-foreground">
-                            <p>{prompt.isFavorite ? 'Unfavorite' : 'Favorite'}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-grow pb-3 space-y-2">
-        <ScrollArea className="h-28 pr-3">
-          <p className="text-sm whitespace-pre-wrap text-foreground">
-            {prompt.text}
-          </p>
-        </ScrollArea>
-        {prompt.isGeneratingDetails && (!prompt.tags || prompt.tags.length === 0) && (
-            <div className="flex items-center text-xs text-muted-foreground">
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating tags...
-            </div>
-        )}
-        {prompt.tags && prompt.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {prompt.tags.map((tag) => (
-              <Popover key={tag} open={popoverOpenState[tag]} onOpenChange={(isOpen) => handleTagPopoverOpenChange(tag, isOpen)}>
-                <PopoverTrigger asChild>
-                  <Badge variant="secondary" className="cursor-pointer hover:bg-accent hover:text-accent-foreground group">
-                    {tag}
-                    <GripVertical className="w-3 h-3 ml-1 opacity-50 group-hover:opacity-100" />
-                  </Badge>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-2 space-y-2" side="bottom" align="start">
-                  <p className="text-sm font-medium text-center">Manage Tag: "{tag}"</p>
-                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      onRenameTagRequest(prompt.id, tag);
-                      handleTagPopoverOpenChange(tag, false);
-                    }}
-                  >
-                    <PencilIcon className="w-3 h-3 mr-1" /> Rename
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      onRemoveTag(prompt.id, tag);
-                      handleTagPopoverOpenChange(tag, false);
-                    }}
-                  >
-                    <XIcon className="w-3 h-3 mr-1" /> Remove
-                  </Button>
-                </PopoverContent>
-              </Popover>
-            ))}
+    <TooltipProvider>
+      <Card className="flex flex-col h-full shadow-md bg-card hover:shadow-xl hover:scale-[1.02] hover:border-accent/50 transition-all duration-200 ease-in-out border">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+              <div className="flex-grow min-w-0 mr-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <CardTitle 
+                        className="text-lg font-semibold text-primary truncate flex items-center cursor-pointer hover:underline" 
+                        onClick={() => onEdit(prompt)}
+                      >
+                          {prompt.isGeneratingDetails && (prompt.title === "Untitled Prompt" || !prompt.title) ? (
+                              <span className="flex items-center"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating title...</span>
+                          ) : (
+                              <span className="truncate">{prompt.title || "Untitled Prompt"}</span> 
+                          )}
+                      </CardTitle>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-popover text-popover-foreground">
+                      <p>Edit "{prompt.title || "Untitled Prompt"}"</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <CardDescription className="text-xs text-muted-foreground">Saved: {formattedDate}</CardDescription>
+              </div>
+              <div className="flex items-center space-x-1 shrink-0">
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="w-7 h-7 opacity-100" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from header">
+                              <Copy className="w-4 h-4 text-accent" />
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-popover text-popover-foreground">
+                          <p>{usageText}</p>
+                      </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onToggleFavorite(prompt.id)} aria-label="Toggle favorite">
+                              <OrangeFruitIcon isFavorite={prompt.isFavorite} />
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-popover text-popover-foreground">
+                          <p>{prompt.isFavorite ? 'Unfavorite' : 'Favorite'}</p>
+                      </TooltipContent>
+                  </Tooltip>
+              </div>
           </div>
-        )}
-      </CardContent>
-      <CardFooter className="flex justify-end space-x-1.5 pt-3 mt-auto">
-        <TooltipProvider>
-          <Tooltip delayDuration={100}>
+        </CardHeader>
+        <CardContent className="flex-grow pb-3 space-y-2">
+          <ScrollArea className="h-28 pr-3">
+            <p className="text-sm whitespace-pre-wrap text-foreground">
+              {prompt.text}
+            </p>
+          </ScrollArea>
+          {prompt.isGeneratingDetails && (!prompt.tags || prompt.tags.length === 0) && (
+              <div className="flex items-center text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Generating tags...
+              </div>
+          )}
+          {prompt.tags && prompt.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {prompt.tags.map((tag) => (
+                <Popover key={tag} open={popoverOpenState[tag]} onOpenChange={(isOpen) => handleTagPopoverOpenChange(tag, isOpen)}>
+                  <PopoverTrigger asChild>
+                    <Badge variant="secondary" className="cursor-pointer hover:bg-accent hover:text-accent-foreground group">
+                      {tag}
+                      <GripVertical className="w-3 h-3 ml-1 opacity-50 group-hover:opacity-100" />
+                    </Badge>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2 space-y-2" side="bottom" align="start">
+                    <p className="text-sm font-medium text-center">Manage Tag: "{tag}"</p>
+                     <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        onRenameTagRequest(prompt.id, tag);
+                        handleTagPopoverOpenChange(tag, false);
+                      }}
+                    >
+                      <PencilIcon className="w-3 h-3 mr-1" /> Rename
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        onRemoveTag(prompt.id, tag);
+                        handleTagPopoverOpenChange(tag, false);
+                      }}
+                    >
+                      <XIcon className="w-3 h-3 mr-1" /> Remove
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              ))}
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-end space-x-1.5 pt-3 mt-auto">
+          <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={() => onEdit(prompt)} aria-label="Edit prompt">
                 <Edit3 className="w-4 h-4 text-primary" />
@@ -175,11 +192,9 @@ export function PromptItem({
               <p>Edit</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
-         <TooltipProvider>
-          <Tooltip delayDuration={100}>
+           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => onDuplicate(prompt.id)} aria-label="Duplicate prompt">
+              <Button variant="ghost" size="icon" onClick={() => onDuplicate(prompt.id)} aria-label="Duplicate prompt" className="opacity-70 hover:opacity-100">
                 <CloneIcon className="w-4 h-4 text-foreground/80 hover:text-primary" />
               </Button>
             </TooltipTrigger>
@@ -187,11 +202,9 @@ export function PromptItem({
               <p>Duplicate</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider>
-          <Tooltip delayDuration={100}>
+          <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => onDelete(prompt.id)} aria-label="Delete prompt">
+              <Button variant="ghost" size="icon" onClick={() => onDelete(prompt.id)} aria-label="Delete prompt" className="opacity-70 hover:opacity-100">
                 <Trash2 className="w-4 h-4 text-destructive/90 hover:text-destructive" />
               </Button>
             </TooltipTrigger>
@@ -199,20 +212,18 @@ export function PromptItem({
               <p>Delete</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider>
-          <Tooltip delayDuration={100}>
+          <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from footer">
-                <Copy className="w-4 h-4 text-accent opacity-70 hover:opacity-100" />
+              <Button variant="ghost" size="icon" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from footer" className="opacity-100">
+                <Copy className="w-4 h-4 text-accent" />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground">
               <p>{usageText}</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
-      </CardFooter>
-    </Card>
+        </CardFooter>
+      </Card>
+    </TooltipProvider>
   );
 }
