@@ -12,31 +12,48 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-// Orange Fruit Icon for Favorites (original simpler version)
-const OrangeFruitIcon = ({ className, isFavorite }: { className?: string, isFavorite?: boolean }) => (
+// Updated Orange Fruit Icon for Favorites
+const OrangeFruitIcon = ({ className, isFavorite }: { className?: string; isFavorite?: boolean }) => (
   <svg
     viewBox="0 0 24 24"
-    strokeWidth="1.5"
+    strokeWidth="1.5" // Default stroke width for consistency
     className={cn(
-      "w-4 h-4 transition-colors duration-200",
-      isFavorite ? "text-primary-foreground" : "text-muted-foreground hover:text-[hsl(var(--primary))]", // Use primary for hover
+      "w-4 h-4", // Standard icon size
+      "transition-colors duration-200",
+      isFavorite ? "text-[hsl(var(--primary))]" : "text-muted-foreground hover:text-[hsl(var(--primary))]", // Base color for stroke when not filled
       className
     )}
+    fill="none" // Default fill to none, overridden by parts of the SVG
+    aria-hidden="true"
   >
-    <circle 
-      cx="12" 
-      cy="13" 
-      r="6.5" 
-      fill={isFavorite ? "hsl(var(--primary))" : "none"} // Use primary for fill
+    {/* Main Orange Body */}
+    <circle
+      cx="12"
+      cy="13" // Center Y for the main fruit body
+      r="7"   // Radius of the fruit
       stroke={isFavorite ? "hsl(var(--primary))" : "currentColor"}
+      fill={isFavorite ? "hsl(var(--primary))" : "none"}
+      strokeWidth="1.5"
     />
-    <path 
-      d="M14.5 7C14.5 5.5 13.5 4.5 12 4.5S9.5 5.5 9.5 7" 
-      stroke={isFavorite ? "hsl(var(--primary-foreground))" : "hsl(120 50% 40%)"} /* Greenish leaf */
-      fill="none" 
-      strokeLinecap="round"
+    {/* Leaf: A simple shape, attached to top-right of the orange */}
+    <path
+      d="M14.5 4 C16.5 6, 15 8, 13 7 C14 5, 14.5 4, 14.5 4 Z" // Adjusted leaf shape for better appearance
+      fill="hsl(120 50% 40%)"   // Leaf green fill
+      stroke="hsl(120 60% 30%)" // Darker green stroke for leaf
+      strokeWidth="1"
+      transform="rotate(10 14 6)" // Rotate leaf slightly
     />
-    {isFavorite && <circle cx="10" cy="11" r="1" fill="hsl(var(--primary-foreground))" opacity="0.7" />}
+    {/* Optional: A small dot on the orange for texture/detail when favorited */}
+    {isFavorite && (
+      <circle
+        cx="10"
+        cy="11.5"
+        r="1"
+        fill="hsl(var(--primary-foreground))" // Light highlight
+        stroke="none" // No stroke for the highlight itself
+        opacity="0.7"
+      />
+    )}
   </svg>
 );
 
@@ -106,7 +123,6 @@ export function PromptItem({
               <div className="flex items-center space-x-1 shrink-0">
                   <Tooltip>
                       <TooltipTrigger asChild>
-                          {/* Reverted Copy icon opacity and color */}
                           <Button variant="ghost" size="icon" className="w-7 h-7 opacity-70 hover:opacity-100" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from header">
                               <Copy className="w-4 h-4 text-muted-foreground group-hover:text-accent" />
                           </Button>
@@ -182,9 +198,8 @@ export function PromptItem({
         <CardFooter className="flex justify-end space-x-1.5 pt-3 mt-auto">
           <Tooltip>
             <TooltipTrigger asChild>
-              {/* Edit icon prominent */}
-              <Button variant="ghost" size="icon" onClick={() => onEdit(prompt)} aria-label="Edit prompt">
-                <Edit3 className="w-4 h-4 text-primary opacity-100" />
+              <Button variant="ghost" size="icon" onClick={() => onEdit(prompt)} aria-label="Edit prompt" className="opacity-100">
+                <Edit3 className="w-4 h-4 text-primary" />
               </Button>
             </TooltipTrigger>
             <TooltipContent className="bg-popover text-popover-foreground">
@@ -193,7 +208,6 @@ export function PromptItem({
           </Tooltip>
            <Tooltip>
             <TooltipTrigger asChild>
-              {/* Duplicate icon prominent */}
               <Button variant="ghost" size="icon" onClick={() => onDuplicate(prompt.id)} aria-label="Duplicate prompt" className="opacity-100">
                 <CloneIcon className="w-4 h-4 text-foreground/80 hover:text-primary" />
               </Button>
@@ -204,7 +218,6 @@ export function PromptItem({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              {/* Delete icon prominent */}
               <Button variant="ghost" size="icon" onClick={() => onDelete(prompt.id)} aria-label="Delete prompt" className="opacity-100">
                 <Trash2 className="w-4 h-4 text-destructive" />
               </Button>
@@ -215,7 +228,6 @@ export function PromptItem({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              {/* Reverted Copy icon opacity and color */}
               <Button variant="ghost" size="icon" onClick={() => onCopy(prompt.id, prompt.text)} aria-label="Copy prompt text from footer" className="opacity-70 hover:opacity-100">
                 <Copy className="w-4 h-4 text-muted-foreground group-hover:text-accent" />
               </Button>
@@ -229,3 +241,4 @@ export function PromptItem({
     </TooltipProvider>
   );
 }
+
