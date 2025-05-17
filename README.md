@@ -4,7 +4,7 @@
 ## Overview
 OrangePad is a Next.js web application designed for users to create, store, organize, and retrieve text-based prompts. It features AI-powered title and tag generation, local storage persistence, and a user-friendly interface built with ShadCN UI and Tailwind CSS. The application is themed with an orange-centric palette, providing a "zesty" user experience.
 
-![image](https://github.com/user-attachments/assets/6299675e-5651-4811-a06a-cf8e62ad7cb2)
+![Dark mode screenshot of OrangePad](https://github.com/user-attachments/assets/6299675e-5651-4811-a06a-cf8e62ad7cb2)
 
 
 ## Tech Stack
