@@ -22,9 +22,10 @@ interface EditPromptDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onSave: (data: { id: string; title: string; text: string }) => void;
+  maxTextLength: number;
 }
 
-export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditPromptDialogProps) {
+export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave, maxTextLength }: EditPromptDialogProps) {
   const [editTitle, setEditTitle] = useState('');
   const [editText, setEditText] = useState('');
 
@@ -37,6 +38,11 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
 
   const handleSave = () => {
     if (prompt && editText.trim() && editTitle.trim()) {
+      if (editText.trim().length > maxTextLength) {
+        // This should ideally be handled with a toast or inline message by the caller or here
+        alert(`Prompt text cannot exceed ${maxTextLength} characters.`);
+        return;
+      }
       onSave({ id: prompt.id, title: editTitle.trim(), text: editText.trim() });
     }
   };
@@ -50,7 +56,12 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
 
   if (!prompt) return null;
 
-  const hasChanges = (prompt.title !== editTitle.trim() || prompt.text !== editText.trim()) && editTitle.trim() && editText.trim();
+  const hasValidChanges = 
+    (prompt.title !== editTitle.trim() || prompt.text !== editText.trim()) && 
+    editTitle.trim() && 
+    editText.trim() &&
+    editText.trim().length <= maxTextLength;
+
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -63,7 +74,7 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
         <DialogHeader>
           <DialogTitle className="text-primary">Edit Prompt</DialogTitle>
           <DialogDescription>
-            Make changes to your prompt. Title and tags may regenerate if text changes.
+            Make changes to your prompt. Title and tags may regenerate if text changes. (Max text length: {maxTextLength} chars)
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -91,7 +102,13 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
               className="min-h-[120px] bg-input text-foreground placeholder:text-muted-foreground"
               placeholder="Enter your prompt text"
               aria-label="Prompt text editor"
+              maxLength={maxTextLength + 100} // Allow some leeway
             />
+            {editText.length > maxTextLength && (
+                <p className="text-xs text-destructive">
+                    Text exceeds {maxTextLength} characters. Current: {editText.length}.
+                </p>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -100,7 +117,7 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
               Cancel
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleSave} disabled={!hasChanges}>
+          <Button type="button" onClick={handleSave} disabled={!hasValidChanges}>
             Save Changes
           </Button>
         </DialogFooter>

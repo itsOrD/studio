@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AppHeader } from '@/components/AppHeader';
 import { PromptItem } from '@/components/PromptItem';
 import { EditPromptDialog } from '@/components/EditPromptDialog';
-// Removed AuthSection import
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,11 +29,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { generatePromptTitle } from '@/ai/flows/generatePromptTitleFlow';
 import { generatePromptTags } from '@/ai/flows/generatePromptTagsFlow';
-import { sortPrompts as sortPromptsUtility } from '@/lib/sortPromptsUtility'; // Import the new utility
+import { sortPrompts as sortPromptsUtility } from '@/lib/sortPromptsUtility';
 
 const PROMPTS_STORAGE_KEY = 'orangepad-prompts';
-export const INITIAL_UNTITLED_PROMPT = "Untitled Prompt"; // Export for tests
-export const FAVORITES_FILTER_KEY = "🍊 Favorites"; // Export for tests
+export const INITIAL_UNTITLED_PROMPT = "Untitled Prompt";
+export const FAVORITES_FILTER_KEY = "🍊 Favorites";
+const MAX_PROMPT_TEXT_LENGTH = 15000; // Maximum characters for the prompt text area
 
 export default function HomePage() {
   const [prompts, setPrompts] = useLocalStorage<Prompt[]>(PROMPTS_STORAGE_KEY, []);
@@ -52,7 +52,6 @@ export default function HomePage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    // Initialize prompts with default values for new fields
     setPrompts(prev => prev.map(p => ({
       ...p,
       title: p.title || INITIAL_UNTITLED_PROMPT,
@@ -65,19 +64,20 @@ export default function HomePage() {
       customTitle: p.customTitle ?? false,
     })));
     setHydrated(true);
-  }, [setPrompts]); // Only run once on mount
+  }, [setPrompts]);
 
-  const triggerAIGeneration = useCallback(async (promptId: string, text: string, isCustomTitle: boolean, currentTitle?: string) => {
-    // Indicate loading state
+  const triggerAIGeneration = useCallback(async (promptId: string, text: string, isCustomTitle: boolean, currentTitle?: string, textChanged: boolean = true) => {
     setPrompts(prev => prev.map(p => 
       p.id === promptId ? { ...p, isGeneratingDetails: true, title: isCustomTitle ? (currentTitle || p.title) : INITIAL_UNTITLED_PROMPT, tags: textChanged ? [] : p.tags } : p
     ));
 
     try {
-      const titlePromise = isCustomTitle ? Promise.resolve({ title: currentTitle || INITIAL_UNTITLED_PROMPT }) : generatePromptTitle({ promptText: text });
+      const titlePromise = isCustomTitle && !textChanged ? Promise.resolve({ title: currentTitle || INITIAL_UNTITLED_PROMPT }) : generatePromptTitle({ promptText: text });
+      const tagsPromise = textChanged ? generatePromptTags({ promptText: text }) : Promise.resolve({ tags: prompts.find(p=>p.id===promptId)?.tags || [] });
+      
       const [titleResult, tagsResult] = await Promise.all([
         titlePromise,
-        generatePromptTags({ promptText: text })
+        tagsPromise
       ]);
       
       setPrompts(prev => prev.map(p => {
@@ -93,12 +93,10 @@ export default function HomePage() {
         return p;
       }));
 
-      if (!isCustomTitle || (tagsResult.tags && tagsResult.tags.length > 0)) {
-        toast({
-          title: 'AI Details Generated!',
-          description: `Title ${isCustomTitle ? '(custom)' : ''} and tags updated for "${titleResult.title || currentTitle}".`,
-        });
-      }
+      toast({
+        title: 'AI Details Updated!',
+        description: `Title ${isCustomTitle ? '(custom)' : ''} and tags finalized for "${titleResult.title || currentTitle}".`,
+      });
 
     } catch (error) {
       console.error('Failed to generate title or tags:', error);
@@ -109,28 +107,29 @@ export default function HomePage() {
         variant: 'destructive',
       });
     }
-  }, [setPrompts, toast]);
+  }, [setPrompts, toast, prompts]);
 
 
   const handleAddPrompt = useCallback(async () => {
-    if (!newPromptText.trim()) {
-      toast({
-        title: 'Empty Prompt',
-        description: 'Cannot save an empty prompt.',
-        variant: 'destructive',
-      });
+    const trimmedText = newPromptText.trim();
+    if (!trimmedText) {
+      toast({ title: 'Empty Prompt', description: 'Cannot save an empty prompt.', variant: 'destructive' });
       return;
+    }
+    if (trimmedText.length > MAX_PROMPT_TEXT_LENGTH) {
+        toast({ title: 'Prompt Too Long', description: `Prompt text cannot exceed ${MAX_PROMPT_TEXT_LENGTH} characters.`, variant: 'destructive' });
+        return;
     }
 
     const tempId = crypto.randomUUID();
     const newPromptItem: Prompt = {
       id: tempId,
-      text: newPromptText.trim(),
-      title: INITIAL_UNTITLED_PROMPT, // Will be updated by AI
-      tags: [], // Will be updated by AI
+      text: trimmedText,
+      title: INITIAL_UNTITLED_PROMPT,
+      tags: [],
       createdAt: Date.now(),
       isFavorite: false,
-      isGeneratingDetails: true, // Set to true initially
+      isGeneratingDetails: true,
       history: [],
       useCount: 0,
       lastCopiedAt: 0,
@@ -138,15 +137,15 @@ export default function HomePage() {
     };
 
     setPrompts((prevPrompts) => [newPromptItem, ...prevPrompts]);
-    const currentText = newPromptText.trim(); // Capture before clearing
-    setNewPromptText(''); // Clear input after capturing text
+    const currentText = newPromptText.trim();
+    setNewPromptText('');
     
     toast({
       title: 'Prompt Saved!',
       description: `Saving "${currentText.substring(0,30)}..." and generating details.`,
     });
 
-    triggerAIGeneration(tempId, currentText, false, INITIAL_UNTITLED_PROMPT);
+    triggerAIGeneration(tempId, currentText, false, INITIAL_UNTITLED_PROMPT, true);
 
   }, [newPromptText, setPrompts, toast, triggerAIGeneration]);
 
@@ -177,15 +176,17 @@ export default function HomePage() {
     const promptToUpdate = prompts.find(p => p.id === data.id);
     if (!promptToUpdate) return;
 
+    if (data.text.trim().length > MAX_PROMPT_TEXT_LENGTH) {
+        toast({ title: 'Prompt Too Long', description: `Prompt text cannot exceed ${MAX_PROMPT_TEXT_LENGTH} characters.`, variant: 'destructive' });
+        return;
+    }
+    
     const originalText = promptToUpdate.text;
-    // const originalTitle = promptToUpdate.title;
-    const textChanged = originalText !== data.text;
-    const titleChangedManually = promptToUpdate.title !== data.title && data.title.trim() !== "";
+    const textChanged = originalText !== data.text.trim();
+    const titleChangedManually = promptToUpdate.title !== data.title.trim() && data.title.trim() !== "";
     
     const newCustomTitleState = titleChangedManually ? true : (textChanged ? false : promptToUpdate.customTitle);
-    const shouldAiGenerateTitle = textChanged && !titleChangedManually; 
-    const newTitle = titleChangedManually ? data.title : (shouldAiGenerateTitle ? INITIAL_UNTITLED_PROMPT : promptToUpdate.title);
-
+    const newTitle = titleChangedManually ? data.title.trim() : (textChanged ? INITIAL_UNTITLED_PROMPT : promptToUpdate.title);
 
     setPrompts(prev => prev.map(p => {
       if (p.id === data.id) {
@@ -195,11 +196,11 @@ export default function HomePage() {
         }
         return {
           ...p,
-          text: data.text,
+          text: data.text.trim(),
           title: newTitle,
           customTitle: newCustomTitleState,
-          isGeneratingDetails: textChanged, // Only trigger AI for tags if text changed
-          history: newHistory.slice(0, 10), // Keep history limited
+          isGeneratingDetails: textChanged,
+          history: newHistory.slice(0, 10),
         };
       }
       return p;
@@ -208,18 +209,12 @@ export default function HomePage() {
     setEditingPrompt(null);
     setIsEditDialogOpener(false);
 
-    if (textChanged) {
+    if (textChanged || titleChangedManually) {
       toast({
         title: 'Prompt Updated!',
-        description: `"${data.title.substring(0,30)}..." saved. Regenerating details.`,
+        description: `"${newTitle.substring(0,30)}..." saved. ${textChanged ? 'Regenerating details.' : ''}`,
       });
-      // Trigger AI generation for title (if not manually set) and tags
-      triggerAIGeneration(data.id, data.text, newCustomTitleState, newTitle);
-    } else if (titleChangedManually) {
-       toast({
-        title: 'Prompt Title Updated!',
-        description: `Title changed to "${data.title.substring(0,30)}...".`,
-      });
+      triggerAIGeneration(data.id, data.text.trim(), newCustomTitleState, newTitle, textChanged);
     } else {
        toast({
         title: 'Prompt Saved',
@@ -272,16 +267,13 @@ export default function HomePage() {
     setPrompts(prev => prev.map(p => {
       if (p.id === promptId) {
         const existingTags = p.tags || [];
-        // If new tag already exists (and it's not the same as oldTag being renamed to itself with different case)
-        // then just remove the oldTag, effectively merging.
         if (existingTags.includes(newTagCleaned) && newTagCleaned !== oldTag.toLowerCase()) {
             toast({title: "Tag Merged", description: `Tag "${oldTag}" merged into existing tag "${newTagCleaned}".`, variant: "default"});
             return { ...p, tags: existingTags.filter(t => t !== oldTag) };
         }
-        // Otherwise, rename the tag or update its case.
         return {
           ...p,
-          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index) // Ensure uniqueness after rename
+          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index)
         };
       }
       return p;
@@ -307,15 +299,14 @@ export default function HomePage() {
     if (!promptToDuplicate) return;
 
     const duplicatedPrompt: Prompt = {
-      ...promptToDuplicate, // Spread all properties including tags, favorite status, etc.
+      ...promptToDuplicate,
       id: crypto.randomUUID(),
       title: `${promptToDuplicate.title} (Copy)`,
       createdAt: Date.now(),
-      isGeneratingDetails: false, // Don't regenerate on duplicate
-      history: [], // Reset history for the new copy
-      useCount: 0, // Reset use count
-      lastCopiedAt: 0, // Reset last copied
-      // customTitle is important to retain if the source had a custom title
+      isGeneratingDetails: false,
+      history: [],
+      useCount: 0,
+      lastCopiedAt: 0,
       customTitle: promptToDuplicate.customTitle, 
     };
     setPrompts(prev => [duplicatedPrompt, ...prev]);
@@ -341,6 +332,10 @@ export default function HomePage() {
     setIsDragging(false);
     const droppedText = event.dataTransfer.getData('text/plain');
     if (droppedText) {
+      if (droppedText.length > MAX_PROMPT_TEXT_LENGTH) {
+          toast({ title: 'Text Too Long', description: `Dropped text exceeds ${MAX_PROMPT_TEXT_LENGTH} characters and was not loaded.`, variant: 'destructive' });
+          return;
+      }
       setNewPromptText(droppedText);
       toast({
         title: 'Text Dropped!',
@@ -366,6 +361,8 @@ export default function HomePage() {
     return sortPromptsUtility(prompts, sortConfig, activeTag, INITIAL_UNTITLED_PROMPT, FAVORITES_FILTER_KEY);
   }, [hydrated, prompts, sortConfig, activeTag]);
 
+  const isSaveDisabled = !newPromptText.trim() || newPromptText.length > MAX_PROMPT_TEXT_LENGTH;
+
   if (!hydrated) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-background text-foreground">
@@ -379,7 +376,6 @@ export default function HomePage() {
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground">
       <AppHeader />
       <main className="w-full max-w-5xl space-y-8">
-        {/* Removed AuthSection component */}
         <Card 
           className={`w-full shadow-lg transition-all duration-300 ${isDragging ? 'border-accent ring-2 ring-accent' : 'border-input'}`}
           onDragOver={handleDragOver}
@@ -392,7 +388,7 @@ export default function HomePage() {
               <FileText className="w-6 h-6 mr-2" /> Create New Prompt
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              {isDragging ? "Release to drop text!" : "Drag & drop text here, or type below."}
+              {isDragging ? "Release to drop text!" : `Drag & drop text here, or type below (max ${MAX_PROMPT_TEXT_LENGTH} chars).`}
             </p>
           </CardHeader>
           <CardContent>
@@ -403,11 +399,17 @@ export default function HomePage() {
               className={`w-full min-h-[120px] text-base bg-input border-input focus:ring-primary transition-all duration-300 ${isDragging ? 'opacity-50' : 'opacity-100'}`}
               aria-label="New prompt input"
               data-testid="new-prompt-textarea"
+              maxLength={MAX_PROMPT_TEXT_LENGTH + 100} // Allow some leeway for typing before triggering error for better UX
             />
+            {newPromptText.length > MAX_PROMPT_TEXT_LENGTH && (
+                <p className="text-xs text-destructive mt-1">
+                    Prompt text exceeds {MAX_PROMPT_TEXT_LENGTH} characters. Current: {newPromptText.length}.
+                </p>
+            )}
             <Button 
               onClick={handleAddPrompt} 
               className="mt-4 w-full md:w-auto transition-transform active:scale-95 btn-important-action" 
-              disabled={!newPromptText.trim()}
+              disabled={isSaveDisabled}
               data-testid="save-prompt-button"
             >
               <Save className="w-4 h-4 mr-2" /> Save Prompt
@@ -462,7 +464,7 @@ export default function HomePage() {
                     <TabsTrigger value="all">All Prompts</TabsTrigger>
                     {uniqueTagsForFiltering.map(tag => (
                       <TabsTrigger key={tag} value={tag} className="flex items-center gap-1">
-                        {tag === FAVORITES_FILTER_KEY ? <span role="img" aria-label="Orange emoji">🍊</span> : null}
+                        {tag === FAVORITES_FILTER_KEY ? <span role="img" aria-label="Orange emoji" className="text-[hsl(var(--primary))]">🍊</span> : null}
                         {tag}
                       </TabsTrigger>
                     ))}
@@ -507,6 +509,7 @@ export default function HomePage() {
             if (!isOpen) setEditingPrompt(null);
         }}
         onSave={handleSaveEditedPrompt}
+        maxTextLength={MAX_PROMPT_TEXT_LENGTH}
       />
 
       <AlertDialog open={!!promptToDeleteId} onOpenChange={(open) => !open && setPromptToDeleteId(null)}>
@@ -567,5 +570,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    

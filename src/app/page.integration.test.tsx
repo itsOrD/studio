@@ -69,6 +69,21 @@ describe('HomePage Integration Tests', () => {
     expect(screen.getByTestId('save-prompt-button')).toBeEnabled();
   });
 
+  test('disables save button if prompt text exceeds MAX_PROMPT_TEXT_LENGTH', async () => {
+    render(<HomePage />);
+    const textarea = screen.getByPlaceholderText('Enter or drop your prompt here...');
+    const longText = 'a'.repeat(15001); // MAX_PROMPT_TEXT_LENGTH is 15000
+    
+    // Typing character by character can be slow with userEvent for long texts.
+    // Consider directly setting value and dispatching input event for performance in such cases.
+    fireEvent.change(textarea, { target: { value: longText } });
+
+    expect(textarea).toHaveValue(longText);
+    expect(screen.getByTestId('save-prompt-button')).toBeDisabled();
+    expect(screen.getByText(/Prompt text exceeds 15000 characters/i)).toBeInTheDocument();
+  });
+
+
   test('adds a new prompt, shows AI generation placeholders, then updates with AI results', async () => {
     render(<HomePage />);
     const textarea = screen.getByPlaceholderText('Enter or drop your prompt here...');
@@ -76,26 +91,21 @@ describe('HomePage Integration Tests', () => {
 
     await userEvent.type(textarea, 'A brilliant new idea for a prompt.');
     fireEvent.click(saveButton);
-
-    // Check for immediate save with placeholders
+    
     await waitFor(() => {
-      const promptItems = screen.queryAllByTestId(/^prompt-item-/); // Assuming PromptItem has data-testid like prompt-item-{id}
-      // This assertion is tricky without knowing the exact temporary UI state.
-      // Let's check if the "no prompts" message is gone.
       expect(screen.queryByTestId('no-prompts-message')).not.toBeInTheDocument();
-      // And if the toast for saving was called
       expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prompt Saved!' }));
     });
     
-    // Wait for AI results to appear
     await waitFor(async () => {
         const titleElement = await screen.findByText('AI Generated Title');
         expect(titleElement).toBeInTheDocument();
-    }, { timeout: 3000 }); // Increased timeout for AI mocks
+    }, { timeout: 3000 });
 
     expect(screen.getByText('ai-tag1')).toBeInTheDocument();
     expect(screen.getByText('ai-tag2')).toBeInTheDocument();
-    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'AI Details Generated!' }));
+    // AI Details Updated toast message is now more generic.
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'AI Details Updated!' }));
   });
 
   test('filters prompts by tag', async () => {
@@ -139,20 +149,20 @@ describe('HomePage Integration Tests', () => {
     ];
     render(<HomePage />);
 
-    await waitFor(() => expect(screen.getByText('Charlie')).toBeInTheDocument()); // Ensure initial render
+    await waitFor(() => expect(screen.getByText('Charlie')).toBeInTheDocument());
 
     const sortFieldTrigger = screen.getByTestId('sort-field-trigger');
-    fireEvent.mouseDown(sortFieldTrigger); // Open select for sort field
+    fireEvent.mouseDown(sortFieldTrigger);
     const titleOption = await screen.findByText('Title');
     fireEvent.click(titleOption);
 
     const sortOrderTrigger = screen.getByTestId('sort-order-trigger');
-    fireEvent.mouseDown(sortOrderTrigger); // Open select for sort order
+    fireEvent.mouseDown(sortOrderTrigger);
     const ascendingOption = await screen.findByText('Ascending');
     fireEvent.click(ascendingOption);
 
     await waitFor(() => {
-      const promptItems = screen.getAllByTestId(/^prompt-item-title-/); // Assuming PromptItem title has data-testid
+      const promptItems = screen.getAllByTestId(/^prompt-item-title-/);
       const titles = promptItems.map(item => item.textContent);
       expect(titles).toEqual(['Alpha', 'Bravo', 'Charlie']);
     });
@@ -167,17 +177,15 @@ describe('HomePage Integration Tests', () => {
 
     await waitFor(() => expect(screen.getByText('Older Prompt')).toBeInTheDocument());
     
-    // Default sort is createdAt desc, so Newer should be first
     let promptItems = screen.getAllByTestId(/^prompt-item-title-/);
     expect(promptItems.map(item => item.textContent)).toEqual(['Newer Prompt', 'Older Prompt']);
 
-    const favoriteButtonForOlder = screen.getByTestId('prompt-item-p1-favorite-button'); // Assumes data-testid format
+    const favoriteButtonForOlder = screen.getByTestId('prompt-item-p1-favorite-button');
     fireEvent.click(favoriteButtonForOlder);
     
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Favorited!' }));
       promptItems = screen.getAllByTestId(/^prompt-item-title-/);
-      // Now "Older Prompt" (favorited) should be first, then "Newer Prompt"
       expect(promptItems.map(item => item.textContent)).toEqual(['Older Prompt', 'Newer Prompt']);
     });
   });
@@ -190,7 +198,7 @@ describe('HomePage Integration Tests', () => {
 
     await waitFor(() => expect(screen.getByText('Prompt to Delete')).toBeInTheDocument());
     
-    const deleteButton = screen.getByTestId('prompt-item-p1-delete-delete-button'); // Assumes data-testid format
+    const deleteButton = screen.getByTestId('prompt-item-p1-delete-delete-button');
     fireEvent.click(deleteButton);
 
     const confirmDeleteButton = await screen.findByRole('button', { name: /Yes, delete prompt/i });
@@ -203,7 +211,38 @@ describe('HomePage Integration Tests', () => {
     expect(screen.getByTestId('no-prompts-message')).toBeInTheDocument();
   });
 
-  // TODO: Add tests for editing prompt, renaming/removing tags, duplication, other sort orders.
-});
+  // Add test for editing prompt text and ensuring AI details regenerate
+  test('editing prompt text triggers AI regeneration', async () => {
+    mockStoredPrompts = [
+      { id: 'p-edit', title: 'Original Title', text: 'Original text', createdAt: Date.now(), tags: ['original'], isFavorite: false, useCount:0, lastCopiedAt:0, customTitle: false },
+    ];
+    render(<HomePage />);
+    await waitFor(() => expect(screen.getByText('Original Title')).toBeInTheDocument());
 
+    // Mock AI responses for the edit
+    mockGenerateTitle.mockResolvedValue({ title: 'New AI Title After Edit' });
+    mockGenerateTags.mockResolvedValue({ tags: ['edited-tag'] });
+
+    const editButton = screen.getByTestId('prompt-item-p-edit-edit-button'); // Assuming Edit button has a testId
+    fireEvent.click(editButton);
     
+    const editDialogTextarea = await screen.findByLabelText('Prompt text editor');
+    const editDialogSaveButton = screen.getByRole('button', { name: /Save Changes/i });
+
+    await userEvent.clear(editDialogTextarea);
+    await userEvent.type(editDialogTextarea, 'Edited prompt text.');
+    fireEvent.click(editDialogSaveButton);
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prompt Updated!' }));
+    });
+
+    await waitFor(async () => {
+        const newTitleElement = await screen.findByText('New AI Title After Edit');
+        expect(newTitleElement).toBeInTheDocument();
+    }, { timeout: 3000 });
+    
+    expect(screen.getByText('edited-tag')).toBeInTheDocument();
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'AI Details Updated!' }));
+  });
+});
