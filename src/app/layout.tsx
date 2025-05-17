@@ -1,8 +1,10 @@
 
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist } from 'next/font/google'; // Keep Geist_Mono if used, remove if not. For now assume it's used.
+import { Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/ThemeProvider"; // Import ThemeProvider
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -15,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'OrangePad', // Reverted title
-  description: 'Your personal space for crafting and storing prompts with an orange twist!', // Reverted description
+  title: 'OrangePad',
+  description: 'Your personal space for crafting and storing prompts with an orange twist!',
 };
 
 export default function RootLayout({
@@ -25,10 +27,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning> {/* Added suppressHydrationWarning */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans`}>
-        {children}
-        <Toaster />
+        <ThemeProvider
+          defaultTheme="system"
+          storageKey="orangepad-theme"
+        >
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
