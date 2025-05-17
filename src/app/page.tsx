@@ -1,6 +1,7 @@
+
 "use client";
 
-import type { Prompt } from '@/types';
+import type { Prompt, TagBeingEdited } from '@/types';
 import { useState, useEffect, useCallback, useMemo, type DragEvent } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
@@ -12,8 +13,10 @@ import { EditPromptDialog } from '@/components/EditPromptDialog';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive } from 'lucide-react';
+import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive, TagsIcon, PencilIcon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +28,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { generatePromptTitle } from '@/ai/flows/generatePromptTitleFlow';
+import { generatePromptTags } from '@/ai/flows/generatePromptTagsFlow';
 
-const PROMPTS_STORAGE_KEY = 'orangepad-prompts'; // Renamed storage key
+const PROMPTS_STORAGE_KEY = 'orangepad-prompts';
 
 type SortField = 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
@@ -44,13 +48,23 @@ export default function HomePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [promptToDeleteId, setPromptToDeleteId] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'createdAt', order: 'desc' });
+  const [activeTag, setActiveTag] = useState<string | null>(null); // For tag filtering
+  const [tagBeingRenamed, setTagBeingRenamed] = useState<TagBeingEdited | null>(null);
+  const [newTagNameForDialog, setNewTagNameForDialog] = useState('');
+
 
   const { toast } = useToast();
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    // Ensure prompts from localStorage have a `tags` array and initialize hydrated.
+    setPrompts(prev => prev.map(p => ({
+      ...p,
+      tags: Array.isArray(p.tags) ? p.tags : []
+    })));
     setHydrated(true);
-  }, []);
+  }, [setPrompts]);
+
 
   const handleAddPrompt = useCallback(async () => {
     if (!newPromptText.trim()) {
@@ -63,29 +77,35 @@ export default function HomePage() {
     }
 
     let title = 'Untitled Prompt';
-    const loadingToast = toast({ title: 'Saving prompt...', description: 'Generating title, please wait.' });
+    let tags: string[] = [];
+    const loadingToast = toast({ title: 'Saving prompt...', description: 'Generating title and tags, please wait.' });
     
     try {
-      const titleResult = await generatePromptTitle({ promptText: newPromptText.trim() });
+      const [titleResult, tagsResult] = await Promise.all([
+        generatePromptTitle({ promptText: newPromptText.trim() }),
+        generatePromptTags({ promptText: newPromptText.trim() })
+      ]);
       title = titleResult.title;
+      tags = tagsResult.tags || [];
     } catch (error) {
-      console.error('Failed to generate title for new prompt:', error);
+      console.error('Failed to generate title or tags for new prompt:', error);
       toast({
-        title: 'Title Generation Failed',
-        description: 'Using a default title for now.',
+        title: 'AI Generation Failed',
+        description: 'Using default title and no tags for now.',
         variant: 'destructive',
       });
     } finally {
         loadingToast.dismiss();
     }
 
-    const newPrompt: Prompt = {
+    const newPromptItem: Prompt = {
       id: crypto.randomUUID(),
       text: newPromptText.trim(),
       title: title,
+      tags: tags,
       createdAt: Date.now(),
     };
-    setPrompts((prevPrompts) => [newPrompt, ...prevPrompts]);
+    setPrompts((prevPrompts) => [newPromptItem, ...prevPrompts]);
     setNewPromptText('');
     toast({
       title: 'Prompt Saved!',
@@ -120,19 +140,24 @@ export default function HomePage() {
     if (!promptToUpdate) return;
 
     let newTitle = promptToUpdate.title;
-    let titleChanged = false;
+    let newTags = promptToUpdate.tags || [];
+    let titleOrTagsChanged = false;
 
     if (promptToUpdate.text !== data.text) {
-      const loadingToast = toast({ title: 'Updating prompt...', description: 'Regenerating title, please wait.' });
+      const loadingToast = toast({ title: 'Updating prompt...', description: 'Regenerating title and tags, please wait.' });
       try {
-        const titleResult = await generatePromptTitle({ promptText: data.text });
+        const [titleResult, tagsResult] = await Promise.all([
+          generatePromptTitle({ promptText: data.text }),
+          generatePromptTags({ promptText: data.text })
+        ]);
         newTitle = titleResult.title;
-        titleChanged = true;
+        newTags = tagsResult.tags || [];
+        titleOrTagsChanged = true;
       } catch (error) {
-        console.error('Failed to generate title on edit:', error);
+        console.error('Failed to generate title or tags on edit:', error);
         toast({
-          title: 'Title Regeneration Failed',
-          description: 'Could not update title. Using previous title.',
+          title: 'AI Update Failed',
+          description: 'Could not update title/tags. Using previous values.',
           variant: 'destructive',
         });
       } finally {
@@ -143,15 +168,16 @@ export default function HomePage() {
     const updatedPrompt: Prompt = {
       ...promptToUpdate,
       text: data.text,
-      title: newTitle || 'Untitled Prompt',
+      title: newTitle,
+      tags: newTags,
     };
 
     setPrompts(prev => prev.map(p => p.id === updatedPrompt.id ? updatedPrompt : p));
-    setEditingPrompt(null); // Also closes dialog if onOpenChange is linked
-    setIsEditDialogOpener(false); // Explicitly close dialog
+    setEditingPrompt(null);
+    setIsEditDialogOpener(false);
     toast({
       title: 'Prompt Updated!',
-      description: `"${updatedPrompt.title}" has been successfully updated. ${titleChanged ? '(Title also updated)' : ''}`,
+      description: `"${updatedPrompt.title}" has been successfully updated. ${titleOrTagsChanged ? '(Title/tags also updated)' : ''}`,
     });
   }, [prompts, setPrompts, toast]);
 
@@ -170,6 +196,50 @@ export default function HomePage() {
     });
     setPromptToDeleteId(null);
   }, [promptToDeleteId, prompts, setPrompts, toast]);
+
+  const handleRemoveTagFromPrompt = useCallback((promptId: string, tagToRemove: string) => {
+    setPrompts(prev => prev.map(p => {
+      if (p.id === promptId) {
+        return { ...p, tags: (p.tags || []).filter(tag => tag !== tagToRemove) };
+      }
+      return p;
+    }));
+    toast({ title: 'Tag Removed', description: `Tag "${tagToRemove}" removed from prompt.` });
+  }, [setPrompts, toast]);
+
+  const handleOpenRenameTagDialog = useCallback((promptId: string, oldTag: string) => {
+    setTagBeingRenamed({ promptId, oldTag, currentValue: oldTag });
+    setNewTagNameForDialog(oldTag); // Pre-fill dialog input
+  }, []);
+  
+  const handleConfirmRenameTagOnPrompt = useCallback(() => {
+    if (!tagBeingRenamed || !newTagNameForDialog.trim()) {
+      toast({ title: "Rename Canceled", description: "New tag name cannot be empty.", variant: "destructive" });
+      setTagBeingRenamed(null);
+      return;
+    }
+    const { promptId, oldTag } = tagBeingRenamed;
+    const newTagCleaned = newTagNameForDialog.trim().toLowerCase();
+
+    setPrompts(prev => prev.map(p => {
+      if (p.id === promptId) {
+        const existingTags = p.tags || [];
+        // Prevent duplicate tags after rename if new tag already exists
+        if (existingTags.includes(newTagCleaned) && newTagCleaned !== oldTag) {
+            toast({title: "Tag Exists", description: `Tag "${newTagCleaned}" already exists on this prompt. Removing "${oldTag}".`, variant: "default"});
+            return { ...p, tags: existingTags.filter(t => t !== oldTag) };
+        }
+        return {
+          ...p,
+          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index) // ensure uniqueness
+        };
+      }
+      return p;
+    }));
+    toast({ title: 'Tag Renamed', description: `Tag "${oldTag}" renamed to "${newTagCleaned}" on prompt.` });
+    setTagBeingRenamed(null);
+    setNewTagNameForDialog('');
+  }, [tagBeingRenamed, newTagNameForDialog, setPrompts, toast]);
 
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -195,9 +265,23 @@ export default function HomePage() {
     }
   };
 
+  const allUniqueTags = useMemo(() => {
+    if (!hydrated) return [];
+    const tagsSet = new Set<string>();
+    prompts.forEach(prompt => {
+      (prompt.tags || []).forEach(tag => tagsSet.add(tag));
+    });
+    return Array.from(tagsSet).sort();
+  }, [hydrated, prompts]);
+
   const sortedPrompts = useMemo(() => {
     if (!hydrated) return [];
-    const list = [...prompts];
+    let list = [...prompts];
+
+    if (activeTag) {
+      list = list.filter(p => (p.tags || []).includes(activeTag));
+    }
+
     list.sort((a, b) => {
       let comparison = 0;
       const titleA = a.title || 'Untitled Prompt';
@@ -206,18 +290,18 @@ export default function HomePage() {
       if (sortConfig.field === 'title') {
         comparison = titleA.localeCompare(titleB);
       } else { // createdAt
-        comparison = a.createdAt - b.createdAt;
+        comparison = b.createdAt - a.createdAt; // Default to newest first for date
       }
       return sortConfig.order === 'asc' ? comparison : -comparison;
     });
     return list;
-  }, [hydrated, prompts, sortConfig]);
+  }, [hydrated, prompts, sortConfig, activeTag]);
 
   if (!hydrated) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-background text-foreground">
         <AppHeader />
-        <p>Loading prompts...</p>
+        <p>Loading OrangePad...</p> {/* Updated loading text */}
       </div>
     );
   }
@@ -225,7 +309,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground">
       <AppHeader />
-      <main className="w-full max-w-4xl space-y-8"> {/* Increased max-width for tile view */}
+      <main className="w-full max-w-5xl space-y-8"> {/* Increased max-width slightly */}
         <Card 
           className={`w-full shadow-lg transition-all duration-300 ${isDragging ? 'border-primary ring-2 ring-primary' : 'border-input'}`}
           onDragOver={handleDragOver}
@@ -291,12 +375,27 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
+            {allUniqueTags.length > 0 && (
+              <div className="mt-4">
+                <Label className="text-sm text-muted-foreground flex items-center mb-1"><TagsIcon className="w-4 h-4 mr-1.5"/>Filter by Tag:</Label>
+                <Tabs defaultValue="all" onValueChange={(value) => setActiveTag(value === 'all' ? null : value)} className="w-full">
+                  <TabsList className="flex-wrap h-auto justify-start">
+                    <TabsTrigger value="all">All Prompts</TabsTrigger>
+                    {allUniqueTags.map(tag => (
+                      <TabsTrigger key={tag} value={tag}>{tag}</TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {sortedPrompts.length === 0 ? (
-              <p className="text-center text-muted-foreground py-10">No prompts saved yet. Add your first one!</p>
+              <p className="text-center text-muted-foreground py-10">
+                {activeTag ? `No prompts found with tag "${activeTag}".` : "No prompts saved yet. Add your first one!"}
+              </p>
             ) : (
-              <ScrollArea className="h-[600px] pr-2"> {/* Adjust height as needed */}
+              <ScrollArea className="h-[600px] pr-2"> 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sortedPrompts.map((prompt) => (
                     <PromptItem
@@ -305,6 +404,8 @@ export default function HomePage() {
                       onCopy={handleCopyPrompt}
                       onEdit={handleOpenEditDialog}
                       onDelete={confirmDeletePrompt}
+                      onRemoveTag={handleRemoveTagFromPrompt}
+                      onRenameTagRequest={handleOpenRenameTagDialog}
                     />
                   ))}
                 </div>
@@ -319,7 +420,7 @@ export default function HomePage() {
         isOpen={isEditDialogOpener}
         onOpenChange={(isOpen) => {
             setIsEditDialogOpener(isOpen);
-            if (!isOpen) setEditingPrompt(null); // Clear editing prompt when dialog closes
+            if (!isOpen) setEditingPrompt(null);
         }}
         onSave={handleSaveEditedPrompt}
       />
@@ -340,6 +441,36 @@ export default function HomePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {tagBeingRenamed && (
+        <AlertDialog open={!!tagBeingRenamed} onOpenChange={(open) => { if (!open) { setTagBeingRenamed(null); setNewTagNameForDialog(''); }}}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center"><PencilIcon className="w-5 h-5 mr-2 text-primary"/>Rename Tag</AlertDialogTitle>
+              <AlertDialogDescription>
+                Rename the tag "<strong>{tagBeingRenamed.oldTag}</strong>" for this prompt. This change applies only to this specific prompt.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+              <Label htmlFor="new-tag-name" className="text-sm font-medium">New tag name:</Label>
+              <Input
+                id="new-tag-name"
+                value={newTagNameForDialog}
+                onChange={(e) => setNewTagNameForDialog(e.target.value)}
+                placeholder="Enter new tag name"
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setTagBeingRenamed(null); setNewTagNameForDialog(''); }}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmRenameTagOnPrompt} disabled={!newTagNameForDialog.trim() || newTagNameForDialog.trim().toLowerCase() === tagBeingRenamed.oldTag.toLowerCase()}>
+                Save Name
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <footer className="py-8 mt-12 text-center text-muted-foreground">
         <p>&copy; {new Date().getFullYear()} OrangePad. All rights reserved.</p>
