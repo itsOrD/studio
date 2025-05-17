@@ -33,7 +33,7 @@ import { generatePromptTags } from '@/ai/flows/generatePromptTagsFlow';
 
 const PROMPTS_STORAGE_KEY = 'orangepad-prompts'; // Reverted storage key
 const INITIAL_UNTITLED_PROMPT = "Untitled Prompt";
-const FAVORITES_FILTER_KEY = "❤️ Favorites";
+const FAVORITES_FILTER_KEY = "🍊 Favorites"; // Changed from ❤️ to 🍊
 
 type SortField = 'createdAt' | 'title' | 'useCount' | 'lastCopiedAt';
 type SortOrder = 'asc' | 'desc';
@@ -347,6 +347,7 @@ export default function HomePage() {
       (prompt.tags || []).forEach(tag => tagsSet.add(tag));
     });
     const sortedTags = Array.from(tagsSet).sort();
+    // Ensure FAVORITES_FILTER_KEY is always first if there are favorites
     return hasFavorites ? [FAVORITES_FILTER_KEY, ...sortedTags] : sortedTags;
   }, [hydrated, prompts]);
 
@@ -363,19 +364,36 @@ export default function HomePage() {
     }
 
     list.sort((a, b) => {
+      // Primary sort: favorites first
       if (a.isFavorite && !b.isFavorite) return -1;
       if (!a.isFavorite && b.isFavorite) return 1;
 
+      // Secondary sort: based on sortConfig
       let comparison = 0;
       const valA = a[sortConfig.field] ?? (sortConfig.field === 'title' ? INITIAL_UNTITLED_PROMPT : 0);
       const valB = b[sortConfig.field] ?? (sortConfig.field === 'title' ? INITIAL_UNTITLED_PROMPT : 0);
       
       if (sortConfig.field === 'title') {
         comparison = String(valA).localeCompare(String(valB));
-      } else { 
-        comparison = (Number(valB) || 0) - (Number(valA) || 0);
+      } else { // For 'createdAt', 'useCount', 'lastCopiedAt' - higher numeric values are usually "better" or "later"
+        if (sortConfig.order === 'asc') {
+             comparison = (Number(valA) || 0) - (Number(valB) || 0);
+        } else {
+             comparison = (Number(valB) || 0) - (Number(valA) || 0);
+        }
       }
-      return sortConfig.order === 'asc' ? -comparison : comparison; 
+      // For title, 'asc' means A-Z, 'desc' means Z-A
+      // For dates/counts, 'asc' means older/less, 'desc' means newer/more
+      // The above logic for numeric fields with 'desc' order (newer/more first) is already correct.
+      // If primary sort config is 'asc' for numeric, we want smaller values first.
+      // If title, 'asc' is A-Z. If 'desc' is Z-A.
+      // The initial comparison for numeric fields puts larger numbers first. If 'asc' is desired, flip it.
+      // For title, localeCompare result needs to be flipped if order is 'desc'.
+      if (sortConfig.field === 'title') {
+        return sortConfig.order === 'asc' ? comparison : -comparison;
+      }
+      // For numeric fields, the initial comparison is for descending. If ascending is needed, flip.
+      return sortConfig.order === 'desc' ? comparison : -comparison;
     });
     return list;
   }, [hydrated, prompts, sortConfig, activeTag]);
@@ -469,9 +487,8 @@ export default function HomePage() {
                   <TabsList className="flex-wrap h-auto justify-start">
                     <TabsTrigger value="all">All Prompts</TabsTrigger>
                     {uniqueTagsForFiltering.map(tag => (
-                      <TabsTrigger key={tag} value={tag}>
-                        {tag === FAVORITES_FILTER_KEY ? <Heart className="w-4 h-4 mr-1 text-[hsl(var(--primary))]" /> : null} 
-                        {/* Reverted favorite icon to Heart and color to primary for this context */}
+                      <TabsTrigger key={tag} value={tag} className="flex items-center gap-1">
+                        {tag === FAVORITES_FILTER_KEY ? <span role="img" aria-label="Orange emoji">🍊</span> : null}
                         {tag}
                       </TabsTrigger>
                     ))}

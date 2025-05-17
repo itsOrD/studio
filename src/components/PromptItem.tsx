@@ -12,54 +12,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-// Updated Orange Fruit Icon for Favorites - More "Statement Piece"
-const OrangeFruitIcon = ({ className, isFavorite }: { className?: string; isFavorite?: boolean }) => (
-  <svg
-    viewBox="0 0 24 24" // Standard viewBox allows for consistent scaling
-    strokeWidth="1.5" // Default stroke width
-    className={cn(
-      "w-5 h-5", // Increased size for a "statement" feel
-      "transition-all duration-200 ease-in-out", // Smooth transitions for color, fill, and shadow
-      isFavorite 
-        ? "text-[hsl(var(--primary))] drop-shadow-md" // More pronounced shadow when favorite
-        : "text-muted-foreground hover:text-[hsl(var(--primary))] hover:drop-shadow-sm", // Subtle shadow on hover when not favorite
-      className
-    )}
-    fill="none" // Default fill to none; parts will be filled based on state
-    aria-hidden="true"
-  >
-    {/* Leaf part - always visible, color changes slightly */}
-    <path
-      d="M15 3 C14.5 4.5, 13 5.5, 12 5.5 C11 5.5, 9.5 4.5, 9 3 C10.5 2.5, 13.5 2.5, 15 3 Z"
-      fill={isFavorite ? "hsl(100 50% 45%)" : "hsl(100 35% 50%)"} // Brighter green leaf when favorited
-      stroke={isFavorite ? "hsl(100 60% 30%)" : "hsl(100 45% 40%)"} // Darker outline for leaf
-      strokeWidth="1" // Thinner stroke for the leaf
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    {/* Main fruit body - more apple/heart like shape */}
-    <path
-      d="M12 7C9 7 6 9.5 6 13.5C6 17.5 12 21 12 21C12 21 18 17.5 18 13.5C18 9.5 15 7 12 7Z"
-      strokeWidth="1.5" // Standard stroke for the body
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      stroke={isFavorite ? "hsl(var(--primary))" : "currentColor"} // Uses `text-muted-foreground` (via currentColor) when not favorited
-      fill={isFavorite ? "hsl(var(--primary))" : "none"} // Fills with primary orange when favorited
-    />
-    {/* Highlight on the fruit when favorited - adds dimension */}
-    {isFavorite && (
-      <path
-        d="M10 11 A3.5 3.5 0 0 1 13.5 9.5" // A gentle curve for highlight
-        stroke="hsla(var(--primary-foreground), 0.8)" // Use primary-foreground with alpha for highlight color
-        strokeWidth="1.5" // Width of the highlight stroke
-        fill="none" // Highlight is just a line, not filled
-        strokeLinecap="round"
-      />
-    )}
-  </svg>
-);
-
-
 interface PromptItemProps {
   prompt: Prompt;
   onCopy: (promptId: string, text: string) => void;
@@ -135,9 +87,8 @@ export function PromptItem({
                   </Tooltip>
                   <Tooltip>
                       <TooltipTrigger asChild>
-                          {/* Ensure the button accommodates the larger icon if needed */}
-                          <Button variant="ghost" size="icon" className="w-8 h-8 flex items-center justify-center" onClick={() => onToggleFavorite(prompt.id)} aria-label="Toggle favorite">
-                              <OrangeFruitIcon isFavorite={prompt.isFavorite} />
+                          <Button variant="ghost" size="icon" className="w-8 h-8 flex items-center justify-center text-2xl" onClick={() => onToggleFavorite(prompt.id)} aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}>
+                              <span role="img" aria-label="Orange emoji" className={cn(!prompt.isFavorite && "opacity-50")}>🍊</span>
                           </Button>
                       </TooltipTrigger>
                       <TooltipContent className="bg-popover text-popover-foreground">
@@ -244,4 +195,3 @@ export function PromptItem({
     </TooltipProvider>
   );
 }
-
