@@ -1,4 +1,3 @@
-
 # OrangePad: Prompt Management App (v0.5.0)
 
 ## Overview
@@ -11,7 +10,7 @@ OrangePad is a Next.js web application designed for users to create, store, orga
 *   **Styling:** Tailwind CSS (with CSS variables for theming in `src/app/globals.css`)
 *   **AI Integration:** Genkit (using `googleai/gemini-2.0-flash` model via `src/ai/genkit.ts`)
 *   **State Management:** React Hooks (`useState`, `useEffect`, `useCallback`, `useMemo`), `useLocalStorage` custom hook.
-*   **Icons:** `lucide-react`
+*   **Icons:** `lucide-react`, 🍊 emoji for favorites.
 *   **Fonts:** Geist Sans, Geist Mono
 
 ## Project Structure
@@ -23,7 +22,7 @@ OrangePad is a Next.js web application designed for users to create, store, orga
     *   `src/ai/flows/`: Genkit flows for AI tasks (e.g., `generatePromptTitleFlow.ts`, `generatePromptTagsFlow.ts`).
     *   `src/ai/schemas/`: Zod schemas defining the input/output types for AI flows.
 *   `src/hooks/`: Custom React hooks (e.g., `useLocalStorage.ts`, `useToast.ts`, `use-mobile.ts`).
-*   `src/lib/`: Utility functions (e.g., `utils.ts` for `cn`).
+*   `src/lib/`: Utility functions (e.g., `utils.ts` for `cn`, `sortPromptsUtility.ts` for sorting logic).
 *   `src/types/`: TypeScript type definitions (e.g., `index.ts` for `Prompt` type).
 
 ## Key Features (v0.5.0)
@@ -31,13 +30,13 @@ OrangePad is a Next.js web application designed for users to create, store, orga
 *   **AI-Powered Enhancements:**
     *   Automatic title generation for new/edited prompts.
     *   Automatic tag generation for new/edited prompts.
-    *   AI tasks run in the background, allowing immediate UI updates.
+    *   AI tasks run in the background, allowing immediate UI updates with placeholders.
 *   **Persistence:** Prompts are saved to the browser's local storage using the `useLocalStorage` hook.
 *   **Organization & Discovery:**
     *   Sortable prompt list: by creation date, title, use count (`Most Used`), or last copied date (`Recently Used`).
-    *   Filterable prompt list by tags, including a dedicated "❤️ Favorites" filter.
+    *   Filterable prompt list by tags, including a dedicated "🍊 Favorites" filter.
 *   **User Experience Features:**
-    *   Favorite ("Oranging") prompts, with favorited items prioritized in display.
+    *   Favorite ("Oranging") prompts with 🍊 emoji, with favorited items prioritized in display.
     *   Duplicate existing prompts.
     *   Drag & drop text to create new prompts.
     *   Click prompt title to edit.
@@ -46,7 +45,7 @@ OrangePad is a Next.js web application designed for users to create, store, orga
     *   Toasts for user feedback on actions.
 *   **Usage Tracking:**
     *   `useCount`: Tracks how many times a prompt is copied.
-    *   `lastCopiedAt`: Timestamp of the last copy action.
+    *   `lastCopiedAt`: Timestamp of the last copy action, displayed in copy button tooltips.
 
 ## Getting Started
 
@@ -91,8 +90,61 @@ OrangePad is a Next.js web application designed for users to create, store, orga
 ## Styling
 *   The application uses Tailwind CSS for utility-first styling.
 *   ShadCN UI components provide a base set of styled components.
-*   The overall theme ("OrangePad Theme") is defined with CSS HSL variables in `src/app/globals.css`. This includes light and dark mode support.
+*   The overall theme ("OrangePad Theme") is defined with CSS HSL variables in `src/app/globals.css`. This includes light and dark mode support. Refer to `STYLE_GUIDE.md` for details.
 *   The `cn` utility from `src/lib/utils.ts` is used for conditionally applying Tailwind classes.
+
+## Testing
+This project includes foundational unit and integration test files located alongside their respective components/modules (e.g., `*.test.ts`, `*.test.tsx`).
+*   Unit tests focus on individual functions and components (e.g., `src/lib/sortPromptsUtility.test.ts`, `src/hooks/useLocalStorage.test.ts`).
+*   Integration tests cover interactions between components and core user flows (e.g., `src/app/page.integration.test.tsx`).
+
+**To run tests:**
+1.  **Install testing dependencies:**
+    ```bash
+    npm install --save-dev jest @types/jest @testing-library/react @testing-library/jest-dom ts-jest jest-environment-jsdom @testing-library/user-event
+    ```
+2.  **Configure Jest:** Create a `jest.config.js` file in the project root:
+    ```javascript
+    // jest.config.js
+    const nextJest = require('next/jest')
+
+    const createJestConfig = nextJest({
+      dir: './', // Path to your Next.js app
+    })
+    
+    // Add any custom config to be passed to Jest
+    const customJestConfig = {
+      setupFilesAfterEnv: ['<rootDir>/jest.setup.js'], // if you have a setup file
+      testEnvironment: 'jest-environment-jsdom',
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+      // Add more Jest options here if needed
+    }
+    
+    module.exports = createJestConfig(customJestConfig)
+    ```
+    And a `jest.setup.js` (if you created one in the config):
+    ```javascript
+    // jest.setup.js
+    import '@testing-library/jest-dom' 
+    // You can add other global setup here
+    ```
+3.  **Add test script to `package.json`:**
+    ```json
+    "scripts": {
+      // ... other scripts
+      "test": "jest",
+      "test:watch": "jest --watch"
+    },
+    ```
+4.  **Run tests:**
+    ```bash
+    npm test
+    # or
+    npm run test:watch
+    ```
+The provided test files mock Genkit AI flows and `localStorage` for predictable testing.
 
 ## Code Quality
 *   **TypeScript:** Used throughout the project for type safety.
@@ -102,8 +154,6 @@ OrangePad is a Next.js web application designed for users to create, store, orga
     # npm run format (if a format script is added to package.json)
     ```
 
-## Further Development
-*   Consider adding more robust error handling for AI flows.
-*   Explore options for cloud-based data synchronization (e.g., Firebase Firestore).
-*   Enhance prompt history/versioning.
-    
+---
+
+This README reflects the current state (v0.5.0) of OrangePad, including its features, structure, and how to get started with development and testing.

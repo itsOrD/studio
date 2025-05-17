@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Prompt, TagBeingEdited } from '@/types';
+import type { Prompt, TagBeingEdited, SortConfig, SortField, SortOrder } from '@/types'; // Added SortConfig, SortField, SortOrder
 import { useState, useEffect, useCallback, useMemo, type DragEvent } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
@@ -10,14 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AppHeader } from '@/components/AppHeader';
 import { PromptItem } from '@/components/PromptItem';
 import { EditPromptDialog } from '@/components/EditPromptDialog';
-// import { AuthSection } from '@/components/AuthSection'; // Reverted: Removed AuthSection import
+// Removed AuthSection import
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive, TagsIcon, PencilIcon, Copy as CopyIcon, Clone as CloneIcon, Activity, Clock, Heart, BrainCircuit } from 'lucide-react';
+import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive, TagsIcon, PencilIcon, Activity, Clock } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,18 +30,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { generatePromptTitle } from '@/ai/flows/generatePromptTitleFlow';
 import { generatePromptTags } from '@/ai/flows/generatePromptTagsFlow';
+import { sortPrompts as sortPromptsUtility } from '@/lib/sortPromptsUtility'; // Import the new utility
 
-const PROMPTS_STORAGE_KEY = 'orangepad-prompts'; // Reverted storage key
-const INITIAL_UNTITLED_PROMPT = "Untitled Prompt";
-const FAVORITES_FILTER_KEY = "🍊 Favorites"; // Changed from ❤️ to 🍊
-
-type SortField = 'createdAt' | 'title' | 'useCount' | 'lastCopiedAt';
-type SortOrder = 'asc' | 'desc';
-
-interface SortConfig {
-  field: SortField;
-  order: SortOrder;
-}
+const PROMPTS_STORAGE_KEY = 'orangepad-prompts';
+export const INITIAL_UNTITLED_PROMPT = "Untitled Prompt"; // Export for tests
+export const FAVORITES_FILTER_KEY = "🍊 Favorites"; // Export for tests
 
 export default function HomePage() {
   const [prompts, setPrompts] = useLocalStorage<Prompt[]>(PROMPTS_STORAGE_KEY, []);
@@ -59,19 +52,27 @@ export default function HomePage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    // Initialize prompts with default values for new fields
     setPrompts(prev => prev.map(p => ({
       ...p,
+      title: p.title || INITIAL_UNTITLED_PROMPT,
       tags: Array.isArray(p.tags) ? p.tags : [],
       isFavorite: p.isFavorite ?? false,
       isGeneratingDetails: p.isGeneratingDetails ?? false,
       history: Array.isArray(p.history) ? p.history : [],
       useCount: p.useCount ?? 0,
+      lastCopiedAt: p.lastCopiedAt ?? 0,
       customTitle: p.customTitle ?? false,
     })));
     setHydrated(true);
-  }, [setPrompts]);
+  }, [setPrompts]); // Only run once on mount
 
   const triggerAIGeneration = useCallback(async (promptId: string, text: string, isCustomTitle: boolean, currentTitle?: string) => {
+    // Indicate loading state
+    setPrompts(prev => prev.map(p => 
+      p.id === promptId ? { ...p, isGeneratingDetails: true, title: isCustomTitle ? (currentTitle || p.title) : INITIAL_UNTITLED_PROMPT, tags: textChanged ? [] : p.tags } : p
+    ));
+
     try {
       const titlePromise = isCustomTitle ? Promise.resolve({ title: currentTitle || INITIAL_UNTITLED_PROMPT }) : generatePromptTitle({ promptText: text });
       const [titleResult, tagsResult] = await Promise.all([
@@ -83,7 +84,7 @@ export default function HomePage() {
         if (p.id === promptId) {
           return { 
             ...p, 
-            title: titleResult.title, 
+            title: titleResult.title || (isCustomTitle ? currentTitle : INITIAL_UNTITLED_PROMPT), 
             tags: tagsResult.tags || [], 
             isGeneratingDetails: false,
             customTitle: isCustomTitle 
@@ -94,14 +95,14 @@ export default function HomePage() {
 
       if (!isCustomTitle || (tagsResult.tags && tagsResult.tags.length > 0)) {
         toast({
-          title: 'Details Generated!',
-          description: `Title ${isCustomTitle ? '(custom)' : ''} and tags updated for "${titleResult.title}".`,
+          title: 'AI Details Generated!',
+          description: `Title ${isCustomTitle ? '(custom)' : ''} and tags updated for "${titleResult.title || currentTitle}".`,
         });
       }
 
     } catch (error) {
       console.error('Failed to generate title or tags:', error);
-      setPrompts(prev => prev.map(p => p.id === promptId ? { ...p, isGeneratingDetails: false, title: currentTitle || INITIAL_UNTITLED_PROMPT, customTitle: isCustomTitle } : p));
+      setPrompts(prev => prev.map(p => p.id === promptId ? { ...p, isGeneratingDetails: false, title: currentTitle || (isCustomTitle ? p.title : INITIAL_UNTITLED_PROMPT), customTitle: isCustomTitle } : p));
       toast({
         title: 'AI Generation Failed',
         description: 'Could not generate title/tags. Using default/previous values.',
@@ -125,19 +126,20 @@ export default function HomePage() {
     const newPromptItem: Prompt = {
       id: tempId,
       text: newPromptText.trim(),
-      title: INITIAL_UNTITLED_PROMPT,
-      tags: [],
+      title: INITIAL_UNTITLED_PROMPT, // Will be updated by AI
+      tags: [], // Will be updated by AI
       createdAt: Date.now(),
       isFavorite: false,
-      isGeneratingDetails: true,
+      isGeneratingDetails: true, // Set to true initially
       history: [],
       useCount: 0,
+      lastCopiedAt: 0,
       customTitle: false,
     };
 
     setPrompts((prevPrompts) => [newPromptItem, ...prevPrompts]);
-    const currentText = newPromptText.trim();
-    setNewPromptText('');
+    const currentText = newPromptText.trim(); // Capture before clearing
+    setNewPromptText(''); // Clear input after capturing text
     
     toast({
       title: 'Prompt Saved!',
@@ -176,12 +178,14 @@ export default function HomePage() {
     if (!promptToUpdate) return;
 
     const originalText = promptToUpdate.text;
-    const originalTitle = promptToUpdate.title;
+    // const originalTitle = promptToUpdate.title;
     const textChanged = originalText !== data.text;
     const titleChangedManually = promptToUpdate.title !== data.title && data.title.trim() !== "";
     
-    const isNewCustomTitle = titleChangedManually ? true : (textChanged ? false : promptToUpdate.customTitle);
+    const newCustomTitleState = titleChangedManually ? true : (textChanged ? false : promptToUpdate.customTitle);
     const shouldAiGenerateTitle = textChanged && !titleChangedManually; 
+    const newTitle = titleChangedManually ? data.title : (shouldAiGenerateTitle ? INITIAL_UNTITLED_PROMPT : promptToUpdate.title);
+
 
     setPrompts(prev => prev.map(p => {
       if (p.id === data.id) {
@@ -192,10 +196,10 @@ export default function HomePage() {
         return {
           ...p,
           text: data.text,
-          title: titleChangedManually ? data.title : (shouldAiGenerateTitle ? INITIAL_UNTITLED_PROMPT : p.title),
-          customTitle: isNewCustomTitle,
-          isGeneratingDetails: textChanged, 
-          history: newHistory.slice(0, 10), 
+          title: newTitle,
+          customTitle: newCustomTitleState,
+          isGeneratingDetails: textChanged, // Only trigger AI for tags if text changed
+          history: newHistory.slice(0, 10), // Keep history limited
         };
       }
       return p;
@@ -209,7 +213,8 @@ export default function HomePage() {
         title: 'Prompt Updated!',
         description: `"${data.title.substring(0,30)}..." saved. Regenerating details.`,
       });
-      triggerAIGeneration(data.id, data.text, titleChangedManually, titleChangedManually ? data.title : undefined);
+      // Trigger AI generation for title (if not manually set) and tags
+      triggerAIGeneration(data.id, data.text, newCustomTitleState, newTitle);
     } else if (titleChangedManually) {
        toast({
         title: 'Prompt Title Updated!',
@@ -218,7 +223,7 @@ export default function HomePage() {
     } else {
        toast({
         title: 'Prompt Saved',
-        description: 'No changes detected.',
+        description: 'No changes detected to text or title.',
       });
     }
   }, [prompts, setPrompts, toast, triggerAIGeneration]);
@@ -258,6 +263,7 @@ export default function HomePage() {
     if (!tagBeingRenamed || !newTagNameForDialog.trim()) {
       toast({ title: "Rename Canceled", description: "New tag name cannot be empty.", variant: "destructive" });
       setTagBeingRenamed(null);
+      setNewTagNameForDialog('');
       return;
     }
     const { promptId, oldTag } = tagBeingRenamed;
@@ -266,13 +272,16 @@ export default function HomePage() {
     setPrompts(prev => prev.map(p => {
       if (p.id === promptId) {
         const existingTags = p.tags || [];
-        if (existingTags.includes(newTagCleaned) && newTagCleaned !== oldTag) {
-            toast({title: "Tag Exists", description: `Tag "${newTagCleaned}" already exists on this prompt. Removing "${oldTag}".`, variant: "default"});
+        // If new tag already exists (and it's not the same as oldTag being renamed to itself with different case)
+        // then just remove the oldTag, effectively merging.
+        if (existingTags.includes(newTagCleaned) && newTagCleaned !== oldTag.toLowerCase()) {
+            toast({title: "Tag Merged", description: `Tag "${oldTag}" merged into existing tag "${newTagCleaned}".`, variant: "default"});
             return { ...p, tags: existingTags.filter(t => t !== oldTag) };
         }
+        // Otherwise, rename the tag or update its case.
         return {
           ...p,
-          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index)
+          tags: existingTags.map(t => t === oldTag ? newTagCleaned : t).filter((tag, index, self) => self.indexOf(tag) === index) // Ensure uniqueness after rename
         };
       }
       return p;
@@ -298,13 +307,15 @@ export default function HomePage() {
     if (!promptToDuplicate) return;
 
     const duplicatedPrompt: Prompt = {
-      ...promptToDuplicate,
+      ...promptToDuplicate, // Spread all properties including tags, favorite status, etc.
       id: crypto.randomUUID(),
       title: `${promptToDuplicate.title} (Copy)`,
       createdAt: Date.now(),
-      isGeneratingDetails: false, 
-      history: [], 
-      useCount: 0, 
+      isGeneratingDetails: false, // Don't regenerate on duplicate
+      history: [], // Reset history for the new copy
+      useCount: 0, // Reset use count
+      lastCopiedAt: 0, // Reset last copied
+      // customTitle is important to retain if the source had a custom title
       customTitle: promptToDuplicate.customTitle, 
     };
     setPrompts(prev => [duplicatedPrompt, ...prev]);
@@ -346,56 +357,13 @@ export default function HomePage() {
       if (prompt.isFavorite) hasFavorites = true;
       (prompt.tags || []).forEach(tag => tagsSet.add(tag));
     });
-    const sortedTags = Array.from(tagsSet).sort();
-    // Ensure FAVORITES_FILTER_KEY is always first if there are favorites
+    const sortedTags = Array.from(tagsSet).sort((a,b) => a.localeCompare(b));
     return hasFavorites ? [FAVORITES_FILTER_KEY, ...sortedTags] : sortedTags;
   }, [hydrated, prompts]);
 
   const sortedPrompts = useMemo(() => {
     if (!hydrated) return [];
-    let list = [...prompts];
-
-    if (activeTag) {
-      if (activeTag === FAVORITES_FILTER_KEY) {
-        list = list.filter(p => p.isFavorite);
-      } else {
-        list = list.filter(p => (p.tags || []).includes(activeTag));
-      }
-    }
-
-    list.sort((a, b) => {
-      // Primary sort: favorites first
-      if (a.isFavorite && !b.isFavorite) return -1;
-      if (!a.isFavorite && b.isFavorite) return 1;
-
-      // Secondary sort: based on sortConfig
-      let comparison = 0;
-      const valA = a[sortConfig.field] ?? (sortConfig.field === 'title' ? INITIAL_UNTITLED_PROMPT : 0);
-      const valB = b[sortConfig.field] ?? (sortConfig.field === 'title' ? INITIAL_UNTITLED_PROMPT : 0);
-      
-      if (sortConfig.field === 'title') {
-        comparison = String(valA).localeCompare(String(valB));
-      } else { // For 'createdAt', 'useCount', 'lastCopiedAt' - higher numeric values are usually "better" or "later"
-        if (sortConfig.order === 'asc') {
-             comparison = (Number(valA) || 0) - (Number(valB) || 0);
-        } else {
-             comparison = (Number(valB) || 0) - (Number(valA) || 0);
-        }
-      }
-      // For title, 'asc' means A-Z, 'desc' means Z-A
-      // For dates/counts, 'asc' means older/less, 'desc' means newer/more
-      // The above logic for numeric fields with 'desc' order (newer/more first) is already correct.
-      // If primary sort config is 'asc' for numeric, we want smaller values first.
-      // If title, 'asc' is A-Z. If 'desc' is Z-A.
-      // The initial comparison for numeric fields puts larger numbers first. If 'asc' is desired, flip it.
-      // For title, localeCompare result needs to be flipped if order is 'desc'.
-      if (sortConfig.field === 'title') {
-        return sortConfig.order === 'asc' ? comparison : -comparison;
-      }
-      // For numeric fields, the initial comparison is for descending. If ascending is needed, flip.
-      return sortConfig.order === 'desc' ? comparison : -comparison;
-    });
-    return list;
+    return sortPromptsUtility(prompts, sortConfig, activeTag, INITIAL_UNTITLED_PROMPT, FAVORITES_FILTER_KEY);
   }, [hydrated, prompts, sortConfig, activeTag]);
 
   if (!hydrated) {
@@ -411,13 +379,13 @@ export default function HomePage() {
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground">
       <AppHeader />
       <main className="w-full max-w-5xl space-y-8">
-        {/* Reverted: Removed AuthSection */}
-        {/* <AuthSection />  */}
+        {/* Removed AuthSection component */}
         <Card 
           className={`w-full shadow-lg transition-all duration-300 ${isDragging ? 'border-accent ring-2 ring-accent' : 'border-input'}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          data-testid="new-prompt-card"
         >
           <CardHeader>
             <CardTitle className="flex items-center text-2xl text-primary">
@@ -434,14 +402,20 @@ export default function HomePage() {
               onChange={(e) => setNewPromptText(e.target.value)}
               className={`w-full min-h-[120px] text-base bg-input border-input focus:ring-primary transition-all duration-300 ${isDragging ? 'opacity-50' : 'opacity-100'}`}
               aria-label="New prompt input"
+              data-testid="new-prompt-textarea"
             />
-            <Button onClick={handleAddPrompt} className="mt-4 w-full md:w-auto transition-transform active:scale-95 btn-important-action" disabled={!newPromptText.trim()}>
+            <Button 
+              onClick={handleAddPrompt} 
+              className="mt-4 w-full md:w-auto transition-transform active:scale-95 btn-important-action" 
+              disabled={!newPromptText.trim()}
+              data-testid="save-prompt-button"
+            >
               <Save className="w-4 h-4 mr-2" /> Save Prompt
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="w-full shadow-lg">
+        <Card className="w-full shadow-lg" data-testid="saved-prompts-card">
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <CardTitle className="flex items-center text-2xl text-primary">
@@ -453,7 +427,7 @@ export default function HomePage() {
                   value={sortConfig.field}
                   onValueChange={(value) => setSortConfig(prev => ({ ...prev, field: value as SortField }))}
                 >
-                  <SelectTrigger id="sort-field" className="w-[170px] h-9">
+                  <SelectTrigger id="sort-field" className="w-[170px] h-9" data-testid="sort-field-trigger">
                     <SelectValue placeholder="Select field" />
                   </SelectTrigger>
                   <SelectContent>
@@ -467,7 +441,7 @@ export default function HomePage() {
                   value={sortConfig.order}
                   onValueChange={(value) => setSortConfig(prev => ({ ...prev, order: value as SortOrder }))}
                 >
-                  <SelectTrigger id="sort-order" className="w-[120px] h-9">
+                  <SelectTrigger id="sort-order" className="w-[120px] h-9" data-testid="sort-order-trigger">
                      <SelectValue placeholder="Select order" />
                   </SelectTrigger>
                   <SelectContent>
@@ -484,7 +458,7 @@ export default function HomePage() {
               <div className="mt-4">
                 <Label className="text-sm text-muted-foreground flex items-center mb-1"><TagsIcon className="w-4 h-4 mr-1.5"/>Filter by Tag:</Label>
                 <Tabs defaultValue="all" onValueChange={(value) => setActiveTag(value === 'all' ? null : value)} className="w-full">
-                  <TabsList className="flex-wrap h-auto justify-start">
+                  <TabsList className="flex-wrap h-auto justify-start" data-testid="tag-filter-tabs">
                     <TabsTrigger value="all">All Prompts</TabsTrigger>
                     {uniqueTagsForFiltering.map(tag => (
                       <TabsTrigger key={tag} value={tag} className="flex items-center gap-1">
@@ -499,12 +473,12 @@ export default function HomePage() {
           </CardHeader>
           <CardContent>
             {sortedPrompts.length === 0 ? (
-              <p className="text-center text-muted-foreground py-10">
-                {activeTag ? `No prompts found for "${activeTag}".` : "No prompts saved yet. Add your first one!"}
+              <p className="text-center text-muted-foreground py-10" data-testid="no-prompts-message">
+                {activeTag ? `No prompts found for tag "${activeTag}".` : "No prompts saved yet. Add your first one!"}
               </p>
             ) : (
               <ScrollArea className="h-[calc(100vh-550px)] min-h-[300px] pr-2"> 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="prompt-list">
                   {sortedPrompts.map((prompt) => (
                     <PromptItem
                       key={prompt.id}
@@ -570,11 +544,16 @@ export default function HomePage() {
                 placeholder="Enter new tag name"
                 className="mt-1"
                 autoFocus
+                data-testid="rename-tag-input"
               />
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => { setTagBeingRenamed(null); setNewTagNameForDialog(''); }}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmRenameTagOnPrompt} disabled={!newTagNameForDialog.trim() || newTagNameForDialog.trim().toLowerCase() === tagBeingRenamed.oldTag.toLowerCase()}>
+              <AlertDialogAction 
+                onClick={handleConfirmRenameTagOnPrompt} 
+                disabled={!newTagNameForDialog.trim() || newTagNameForDialog.trim().toLowerCase() === tagBeingRenamed.oldTag.toLowerCase()}
+                data-testid="confirm-rename-tag-button"
+              >
                 Save Name
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -588,3 +567,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
