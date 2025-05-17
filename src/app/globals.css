@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,50 +9,48 @@ body {
 
 @layer base {
   :root {
-    --background: 208 100% 97%; /* Very Light Lavender (#F0F8FF - AliceBlue) */
-    --foreground: 275 35% 25%; /* Dark Indigo/Purple for text */
+    /* OrangePad Theme */
+    --background: 30 100% 97%; /* Very Light Peach */
+    --foreground: 25 50% 25%; /* Dark Brown */
     
-    --card: 208 80% 99%; /* Slightly off-white lavender for cards */
+    --card: 30 80% 99%; /* Slightly off-white peach for cards */
     --card-foreground: var(--foreground);
     
-    --popover: 208 70% 98%; /* Similar to card */
+    --popover: 30 70% 98%; /* Similar to card */
     --popover-foreground: var(--foreground);
     
-    --primary: 275 100% 25%; /* Indigo (#4B0082) */
-    --primary-foreground: 275 80% 95%; /* Light Indigo/White for text on Indigo */
+    --primary: 24 100% 55%; /* Deep Pumpkin Orange (was --important-action) */
+    --primary-foreground: 20 100% 97%; /* Light warm color for text on orange */
     
-    --secondary: 275 60% 80%; /* Lighter Indigo/Purple for secondary elements */
-    --secondary-foreground: 275 100% 25%; /* Indigo for text on secondary */
+    --secondary: 30 60% 85%; /* Lighter Peach/Orange for secondary elements */
+    --secondary-foreground: 25 50% 25%; /* Dark Brown for text on secondary */
     
-    --muted: 208 50% 92%; /* Muted Lavender */
-    --muted-foreground: 275 30% 45%; /* Medium Indigo/Purple */
+    --muted: 30 50% 92%; /* Muted Peach */
+    --muted-foreground: 25 30% 45%; /* Medium Brown */
     
-    --accent: 274 100% 50%; /* Violet (#8F00FF) */
-    --accent-foreground: 274 80% 95%; /* Light Violet/White for text on Violet */
+    --accent: 39 100% 60%; /* Gold/Yellow-Orange for accents */
+    --accent-foreground: 25 70% 15%; /* Dark brown for text on accent */
     
-    /* Deep Pumpkin Orange (#FF7518) for specific important actions.
-       This can be directly applied or used as a new variable if needed.
-       For now, other destructive/highlight colors are below.
-    */
-    --important-action: 24 100% 55%; /* Deep Pumpkin Orange */
-    --important-action-foreground: 20 100% 97%; /* Light warm color for text on orange */
+    /* --important-action is now effectively --primary */
+    --important-action: var(--primary);
+    --important-action-foreground: var(--primary-foreground);
 
     --destructive: 0 84% 60%; /* Red */
     --destructive-foreground: 0 0% 100%; /* White */
     
-    --border: 275 50% 88%; /* Indigo-tinted Border */
-    --input: 208 60% 94%; /* Slightly off-background lavender for inputs */
-    --ring: 275 100% 50%; /* Brighter Indigo for rings (adjust if primary is too dark for ring) */
+    --border: 30 50% 88%; /* Peach-tinted Border */
+    --input: 30 60% 94%; /* Slightly off-background peach for inputs */
+    --ring: 24 100% 65%; /* Brighter Orange for rings */
 
-    --chart-1: 275 76% 61%; /* Indigo-based chart color */
-    --chart-2: 274 58% 50%; /* Violet-based chart color */
-    --chart-3: 24 100% 60%;  /* Orange-based chart color */
-    --chart-4: 208 74% 66%; /* Lavender-based chart color */
-    --chart-5: 275 87% 75%; /* Lighter Indigo */
+    --chart-1: 24 76% 61%; /* Orange-based chart color */
+    --chart-2: 39 58% 50%; /* Gold-based chart color */
+    --chart-3: 15 100% 60%; /* Other warm tone chart color */
+    --chart-4: 30 74% 66%; /* Peach-based chart color */
+    --chart-5: 24 87% 75%; /* Lighter Orange */
     --radius: 0.5rem;
 
-    /* Sidebar variables - can align with new theme */
-    --sidebar-background: 275 15% 96%; /* Very light Indigo/almost white */
+    /* Sidebar variables - align with new theme */
+    --sidebar-background: 30 15% 96%; /* Very light peach/almost white */
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);
@@ -62,39 +61,40 @@ body {
   }
 
   .dark {
-    --background: 275 15% 10%; /* Very Dark Indigo/Almost Black */
-    --foreground: 208 80% 92%; /* Light Lavender/Off-white for text */
+    /* OrangePad Dark Theme */
+    --background: 25 15% 10%; /* Very Dark Brown/Almost Black */
+    --foreground: 30 80% 92%; /* Light Peach/Off-white for text */
     
-    --card: 275 15% 12%; /* Slightly lighter dark indigo */
+    --card: 25 15% 12%; /* Slightly lighter dark brown */
     --card-foreground: var(--foreground);
     
-    --popover: 275 10% 8%; /* Darker popover */
+    --popover: 25 10% 8%; /* Darker popover */
     --popover-foreground: var(--foreground);
     
-    --primary: 275 100% 60%; /* Brighter Indigo for Dark Mode */
-    --primary-foreground: 275 100% 15%; /* Very Dark Indigo */
+    --primary: 24 100% 65%; /* Brighter Orange for Dark Mode */
+    --primary-foreground: 20 100% 15%; /* Very Dark color for text on orange */
     
-    --secondary: 275 25% 30%; /* Dark muted indigo/purple */
-    --secondary-foreground: 208 80% 85%;
+    --secondary: 25 25% 30%; /* Dark muted brown/orange */
+    --secondary-foreground: 30 80% 85%;
     
-    --muted: 275 20% 25%; /* Darker muted indigo/purple */
-    --muted-foreground: 208 75% 70%;
+    --muted: 25 20% 25%; /* Darker muted brown/orange */
+    --muted-foreground: 30 75% 70%;
     
-    --accent: 274 100% 65%; /* Brighter Violet for Dark Mode */
-    --accent-foreground: 274 100% 15%; /* Dark for violet accent */
+    --accent: 39 100% 65%; /* Brighter Gold/Yellow-Orange for Dark Mode */
+    --accent-foreground: 25 100% 15%; /* Dark for gold accent */
 
-    --important-action: 24 100% 65%; /* Brighter Deep Pumpkin Orange */
-    --important-action-foreground: 20 100% 15%; /* Dark for orange text */
+    --important-action: var(--primary);
+    --important-action-foreground: var(--primary-foreground);
 
     --destructive: 0 80% 70%; /* Brighter Red for Dark Mode */
     --destructive-foreground: 0 0% 100%;
     
-    --border: 275 15% 20%; /* Dark indigo-tinted border */
-    --input: 275 15% 22%; /* Slightly off-background dark for inputs */
-    --ring: 275 100% 65%; /* Brighter Indigo Ring */
+    --border: 25 15% 20%; /* Dark brown-tinted border */
+    --input: 25 15% 22%; /* Slightly off-background dark for inputs */
+    --ring: 24 100% 70%; /* Brighter Orange Ring */
 
     /* Dark Sidebar variables */
-    --sidebar-background: 275 15% 11%; 
+    --sidebar-background: 25 15% 11%; 
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--primary);
     --sidebar-primary-foreground: var(--primary-foreground);

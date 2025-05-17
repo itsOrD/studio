@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AppHeader } from '@/components/AppHeader';
 import { PromptItem } from '@/components/PromptItem';
 import { EditPromptDialog } from '@/components/EditPromptDialog';
-import { AuthSection } from '@/components/AuthSection'; // Import AuthSection
+// import { AuthSection } from '@/components/AuthSection'; // Reverted: Removed AuthSection import
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,7 +31,7 @@ import {
 import { generatePromptTitle } from '@/ai/flows/generatePromptTitleFlow';
 import { generatePromptTags } from '@/ai/flows/generatePromptTagsFlow';
 
-const PROMPTS_STORAGE_KEY = 'promptverse-prompts'; // Updated storage key
+const PROMPTS_STORAGE_KEY = 'orangepad-prompts'; // Reverted storage key
 const INITIAL_UNTITLED_PROMPT = "Untitled Prompt";
 const FAVORITES_FILTER_KEY = "❤️ Favorites";
 
@@ -180,11 +180,8 @@ export default function HomePage() {
     const textChanged = originalText !== data.text;
     const titleChangedManually = promptToUpdate.title !== data.title && data.title.trim() !== "";
     
-    // Determine if AI regeneration is needed for title and tags
-    // Title: AI generates if text changed AND title wasn't manually set in this edit OR if title was AI-generated before and text changed.
-    // Tags: AI generates if text changed.
     const isNewCustomTitle = titleChangedManually ? true : (textChanged ? false : promptToUpdate.customTitle);
-    const shouldAiGenerateTitle = textChanged && !titleChangedManually; // Only AI gen title if text changed and user didn't set a new one
+    const shouldAiGenerateTitle = textChanged && !titleChangedManually; 
 
     setPrompts(prev => prev.map(p => {
       if (p.id === data.id) {
@@ -212,7 +209,6 @@ export default function HomePage() {
         title: 'Prompt Updated!',
         description: `"${data.title.substring(0,30)}..." saved. Regenerating details.`,
       });
-      // Pass current title for AI if it was manually set, otherwise AI will generate one
       triggerAIGeneration(data.id, data.text, titleChangedManually, titleChangedManually ? data.title : undefined);
     } else if (titleChangedManually) {
        toast({
@@ -388,7 +384,7 @@ export default function HomePage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-background text-foreground">
         <AppHeader />
-        <p>Loading PromptVerse...</p>
+        <p>Loading OrangePad...</p>
       </div>
     );
   }
@@ -397,7 +393,8 @@ export default function HomePage() {
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground">
       <AppHeader />
       <main className="w-full max-w-5xl space-y-8">
-        <AuthSection /> {/* Added AuthSection */}
+        {/* Reverted: Removed AuthSection */}
+        {/* <AuthSection />  */}
         <Card 
           className={`w-full shadow-lg transition-all duration-300 ${isDragging ? 'border-accent ring-2 ring-accent' : 'border-input'}`}
           onDragOver={handleDragOver}
@@ -473,7 +470,8 @@ export default function HomePage() {
                     <TabsTrigger value="all">All Prompts</TabsTrigger>
                     {uniqueTagsForFiltering.map(tag => (
                       <TabsTrigger key={tag} value={tag}>
-                        {tag === FAVORITES_FILTER_KEY ? <Heart className="w-4 h-4 mr-1 text-[hsl(var(--important-action))]" /> : null}
+                        {tag === FAVORITES_FILTER_KEY ? <Heart className="w-4 h-4 mr-1 text-[hsl(var(--primary))]" /> : null} 
+                        {/* Reverted favorite icon to Heart and color to primary for this context */}
                         {tag}
                       </TabsTrigger>
                     ))}
@@ -488,7 +486,7 @@ export default function HomePage() {
                 {activeTag ? `No prompts found for "${activeTag}".` : "No prompts saved yet. Add your first one!"}
               </p>
             ) : (
-              <ScrollArea className="h-[calc(100vh-550px)] min-h-[300px] pr-2"> {/* Adjusted height */}
+              <ScrollArea className="h-[calc(100vh-550px)] min-h-[300px] pr-2"> 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sortedPrompts.map((prompt) => (
                     <PromptItem
@@ -568,7 +566,7 @@ export default function HomePage() {
       )}
 
       <footer className="py-8 mt-12 text-center text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} PromptVerse. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} OrangePad. All rights reserved.</p>
       </footer>
     </div>
   );

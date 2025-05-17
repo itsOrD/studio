@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PromptVerse',
-  description: 'Your smart space to create, store, and manage prompts with ease.',
+  title: 'OrangePad', // Reverted title
+  description: 'Your personal space for crafting and storing prompts with an orange twist!', // Reverted description
 };
 
 export default function RootLayout({
