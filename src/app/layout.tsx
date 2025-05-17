@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PromptVerse',
-  description: 'Manage your prompts efficiently.',
+  title: 'OrangePad',
+  description: 'Your smart pad for notes and prompts.',
 };
 
 export default function RootLayout({

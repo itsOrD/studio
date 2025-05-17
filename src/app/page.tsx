@@ -1,7 +1,7 @@
 "use client";
 
 import type { Prompt } from '@/types';
-import { useState, useEffect, useCallback, type DragEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, type DragEvent } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,7 +11,9 @@ import { PromptItem } from '@/components/PromptItem';
 import { EditPromptDialog } from '@/components/EditPromptDialog';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Save, ListChecks, FileText } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Save, ListChecks, FileText, ArrowDownUp, CalendarDays, CaseSensitive } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,10 +23,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { generatePromptTitle } from '@/ai/flows/generatePromptTitleFlow';
 
+const PROMPTS_STORAGE_KEY = 'orangepad-prompts'; // Renamed storage key
 
-const PROMPTS_STORAGE_KEY = 'promptverse-prompts';
+type SortField = 'createdAt' | 'title';
+type SortOrder = 'asc' | 'desc';
+
+interface SortConfig {
+  field: SortField;
+  order: SortOrder;
+}
 
 export default function HomePage() {
   const [prompts, setPrompts] = useLocalStorage<Prompt[]>(PROMPTS_STORAGE_KEY, []);
@@ -33,17 +43,16 @@ export default function HomePage() {
   const [isEditDialogOpener, setIsEditDialogOpener] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [promptToDeleteId, setPromptToDeleteId] = useState<string | null>(null);
-
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'createdAt', order: 'desc' });
 
   const { toast } = useToast();
-
-  // Hydration safety: Ensure client-side state for prompts is synced after mount
   const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
     setHydrated(true);
   }, []);
 
-  const handleAddPrompt = useCallback(() => {
+  const handleAddPrompt = useCallback(async () => {
     if (!newPromptText.trim()) {
       toast({
         title: 'Empty Prompt',
@@ -52,16 +61,35 @@ export default function HomePage() {
       });
       return;
     }
+
+    let title = 'Untitled Prompt';
+    const loadingToast = toast({ title: 'Saving prompt...', description: 'Generating title, please wait.' });
+    
+    try {
+      const titleResult = await generatePromptTitle({ promptText: newPromptText.trim() });
+      title = titleResult.title;
+    } catch (error) {
+      console.error('Failed to generate title for new prompt:', error);
+      toast({
+        title: 'Title Generation Failed',
+        description: 'Using a default title for now.',
+        variant: 'destructive',
+      });
+    } finally {
+        loadingToast.dismiss();
+    }
+
     const newPrompt: Prompt = {
       id: crypto.randomUUID(),
       text: newPromptText.trim(),
+      title: title,
       createdAt: Date.now(),
     };
     setPrompts((prevPrompts) => [newPrompt, ...prevPrompts]);
     setNewPromptText('');
     toast({
       title: 'Prompt Saved!',
-      description: 'Your new prompt has been successfully saved.',
+      description: `"${title}" has been successfully saved.`,
     });
   }, [newPromptText, setPrompts, toast]);
 
@@ -87,15 +115,45 @@ export default function HomePage() {
     setIsEditDialogOpener(true);
   }, []);
   
-  const handleSaveEditedPrompt = useCallback((updatedPrompt: Prompt) => {
-    setPrompts((prevPrompts) =>
-      prevPrompts.map((p) => (p.id === updatedPrompt.id ? updatedPrompt : p))
-    );
+  const handleSaveEditedPrompt = useCallback(async (data: { id: string; text: string }) => {
+    const promptToUpdate = prompts.find(p => p.id === data.id);
+    if (!promptToUpdate) return;
+
+    let newTitle = promptToUpdate.title;
+    let titleChanged = false;
+
+    if (promptToUpdate.text !== data.text) {
+      const loadingToast = toast({ title: 'Updating prompt...', description: 'Regenerating title, please wait.' });
+      try {
+        const titleResult = await generatePromptTitle({ promptText: data.text });
+        newTitle = titleResult.title;
+        titleChanged = true;
+      } catch (error) {
+        console.error('Failed to generate title on edit:', error);
+        toast({
+          title: 'Title Regeneration Failed',
+          description: 'Could not update title. Using previous title.',
+          variant: 'destructive',
+        });
+      } finally {
+        loadingToast.dismiss();
+      }
+    }
+
+    const updatedPrompt: Prompt = {
+      ...promptToUpdate,
+      text: data.text,
+      title: newTitle || 'Untitled Prompt',
+    };
+
+    setPrompts(prev => prev.map(p => p.id === updatedPrompt.id ? updatedPrompt : p));
+    setEditingPrompt(null); // Also closes dialog if onOpenChange is linked
+    setIsEditDialogOpener(false); // Explicitly close dialog
     toast({
       title: 'Prompt Updated!',
-      description: 'Your prompt has been successfully updated.',
+      description: `"${updatedPrompt.title}" has been successfully updated. ${titleChanged ? '(Title also updated)' : ''}`,
     });
-  }, [setPrompts, toast]);
+  }, [prompts, setPrompts, toast]);
 
   const confirmDeletePrompt = useCallback((promptId: string) => {
     setPromptToDeleteId(promptId);
@@ -103,14 +161,15 @@ export default function HomePage() {
 
   const handleDeletePrompt = useCallback(() => {
     if (!promptToDeleteId) return;
+    const promptToDelete = prompts.find(p => p.id === promptToDeleteId);
     setPrompts((prevPrompts) => prevPrompts.filter((p) => p.id !== promptToDeleteId));
     toast({
       title: 'Prompt Deleted!',
-      description: 'The prompt has been removed.',
+      description: `"${promptToDelete?.title || 'The prompt'}" has been removed.`,
       variant: 'destructive'
     });
     setPromptToDeleteId(null);
-  }, [promptToDeleteId, setPrompts, toast]);
+  }, [promptToDeleteId, prompts, setPrompts, toast]);
 
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -136,7 +195,23 @@ export default function HomePage() {
     }
   };
 
-  const sortedPrompts = hydrated ? [...prompts].sort((a, b) => b.createdAt - a.createdAt) : [];
+  const sortedPrompts = useMemo(() => {
+    if (!hydrated) return [];
+    const list = [...prompts];
+    list.sort((a, b) => {
+      let comparison = 0;
+      const titleA = a.title || 'Untitled Prompt';
+      const titleB = b.title || 'Untitled Prompt';
+
+      if (sortConfig.field === 'title') {
+        comparison = titleA.localeCompare(titleB);
+      } else { // createdAt
+        comparison = a.createdAt - b.createdAt;
+      }
+      return sortConfig.order === 'asc' ? comparison : -comparison;
+    });
+    return list;
+  }, [hydrated, prompts, sortConfig]);
 
   if (!hydrated) {
     return (
@@ -150,7 +225,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 md:p-8 bg-background text-foreground">
       <AppHeader />
-      <main className="w-full max-w-3xl space-y-8">
+      <main className="w-full max-w-4xl space-y-8"> {/* Increased max-width for tile view */}
         <Card 
           className={`w-full shadow-lg transition-all duration-300 ${isDragging ? 'border-primary ring-2 ring-primary' : 'border-input'}`}
           onDragOver={handleDragOver}
@@ -181,16 +256,48 @@ export default function HomePage() {
 
         <Card className="w-full shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center text-2xl text-primary">
-              <ListChecks className="w-6 h-6 mr-2" /> Saved Prompts
-            </CardTitle>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle className="flex items-center text-2xl text-primary">
+                <ListChecks className="w-6 h-6 mr-2" /> Saved Prompts
+              </CardTitle>
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="sort-field" className="text-sm text-muted-foreground">Sort by:</Label>
+                <Select
+                  value={sortConfig.field}
+                  onValueChange={(value) => setSortConfig(prev => ({ ...prev, field: value as SortField }))}
+                >
+                  <SelectTrigger id="sort-field" className="w-[150px] h-9">
+                    <SelectValue placeholder="Select field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="createdAt"><CalendarDays className="inline-block w-4 h-4 mr-2" />Date Saved</SelectItem>
+                    <SelectItem value="title"><CaseSensitive className="inline-block w-4 h-4 mr-2" />Title</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={sortConfig.order}
+                  onValueChange={(value) => setSortConfig(prev => ({ ...prev, order: value as SortOrder }))}
+                >
+                  <SelectTrigger id="sort-order" className="w-[120px] h-9">
+                     <SelectValue placeholder="Select order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Descending</SelectItem>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" onClick={() => setSortConfig(prev => ({ ...prev, order: prev.order === 'asc' ? 'desc' : 'asc' }))} className="h-9 w-9">
+                    <ArrowDownUp className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {sortedPrompts.length === 0 ? (
-              <p className="text-center text-muted-foreground">No prompts saved yet. Add your first one!</p>
+              <p className="text-center text-muted-foreground py-10">No prompts saved yet. Add your first one!</p>
             ) : (
-              <ScrollArea className="h-[400px] pr-2"> {/* Adjust max height as needed */}
-                <div className="space-y-4">
+              <ScrollArea className="h-[600px] pr-2"> {/* Adjust height as needed */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sortedPrompts.map((prompt) => (
                     <PromptItem
                       key={prompt.id}
@@ -210,7 +317,10 @@ export default function HomePage() {
       <EditPromptDialog
         prompt={editingPrompt}
         isOpen={isEditDialogOpener}
-        onOpenChange={setIsEditDialogOpener}
+        onOpenChange={(isOpen) => {
+            setIsEditDialogOpener(isOpen);
+            if (!isOpen) setEditingPrompt(null); // Clear editing prompt when dialog closes
+        }}
         onSave={handleSaveEditedPrompt}
       />
 
@@ -232,7 +342,7 @@ export default function HomePage() {
       </AlertDialog>
 
       <footer className="py-8 mt-12 text-center text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} PromptVerse. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} OrangePad. All rights reserved.</p>
       </footer>
     </div>
   );

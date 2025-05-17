@@ -2,7 +2,7 @@
 
 import type { Prompt } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Copy, Edit3, Trash2 } from 'lucide-react';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,19 +20,21 @@ export function PromptItem({ prompt, onCopy, onEdit, onDelete }: PromptItemProps
   });
 
   return (
-    <Card className="w-full mb-4 shadow-md bg-card hover:shadow-lg transition-shadow duration-200">
+    <Card className="flex flex-col h-full shadow-md bg-card hover:shadow-lg transition-shadow duration-200">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-semibold text-primary truncate">Prompt</CardTitle>
-         <p className="text-xs text-muted-foreground">Saved: {formattedDate}</p>
+        <CardTitle className="text-lg font-semibold text-primary truncate" title={prompt.title || "Untitled Prompt"}>
+          {prompt.title || "Untitled Prompt"}
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">Saved: {formattedDate}</CardDescription>
       </CardHeader>
-      <CardContent className="pb-3">
-        <ScrollArea className="h-24 pr-3">
+      <CardContent className="flex-grow pb-3">
+        <ScrollArea className="h-28 pr-3"> {/* Adjusted height for tile consistency */}
           <p className="text-sm whitespace-pre-wrap text-foreground">
             {prompt.text}
           </p>
         </ScrollArea>
       </CardContent>
-      <CardFooter className="flex justify-end space-x-2">
+      <CardFooter className="flex justify-end space-x-2 pt-3 mt-auto">
         <TooltipProvider>
           <Tooltip delayDuration={100}>
             <TooltipTrigger asChild>

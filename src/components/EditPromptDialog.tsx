@@ -19,7 +19,7 @@ interface EditPromptDialogProps {
   prompt: Prompt | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (updatedPrompt: Prompt) => void;
+  onSave: (data: { id: string; text: string }) => void; // Changed signature
 }
 
 export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditPromptDialogProps) {
@@ -33,7 +33,7 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
 
   const handleSave = () => {
     if (prompt && editText.trim()) {
-      onSave({ ...prompt, text: editText.trim() });
+      onSave({ id: prompt.id, text: editText.trim() });
       onOpenChange(false);
     }
   };
@@ -46,7 +46,7 @@ export function EditPromptDialog({ prompt, isOpen, onOpenChange, onSave }: EditP
         <DialogHeader>
           <DialogTitle className="text-primary">Edit Prompt</DialogTitle>
           <DialogDescription>
-            Make changes to your prompt below. Click save when you're done.
+            Make changes to your prompt text below. The title will be automatically updated if the text changes. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
